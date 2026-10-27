@@ -19,24 +19,31 @@ Implemented natively in Go (no Python runtime, no browser automation); see
 ## Provider installation (development)
 
 ```hcl
-# OpenTofu: file-based mirror or dev override.
-# Terraform: use the dev override in ~/.terraformrc:
-#   dev_overrides {
-#     "registry.opentofu.org/repparw/tplink" = "/path/to/checkout"
-#   }
+terraform {
+  required_providers {
+    tplink = {
+      source = "registry.opentofu.org/repparw/tplink"
+    }
+  }
+}
+
 provider "tplink" {
   host     = "http://192.168.0.1"
   password = var.router_password
 }
 ```
 
-Build the provider binary and (for normal usage) install a file mirror:
+Build and install via a plugin directory (verified with OpenTofu 1.13):
 
 ```sh
 go build -o terraform-provider-tplink .
-mkdir -p ~/.terraform.d/plugins/registry.opentofu.org/repparw/tplink/0.1.0/linux_amd64
-cp terraform-provider-tplink ~/.terraform.d/plugins/registry.opentofu.org/repparw/tplink/0.1.0/linux_amd64/
+mkdir -p ~/.tofu.d/plugins/registry.opentofu.org/repparw/tplink/0.1.0/linux_amd64
+cp terraform-provider-tplink ~/.tofu.d/plugins/registry.opentofu.org/repparw/tplink/0.1.0/linux_amd64/
+tofu init -plugin-dir=~/.tofu.d/plugins
 ```
+
+`terraform` works the same way with `~/.terraform.d/plugins` and
+`terraform init -plugin-dir=...`.
 
 ## Data sources (read-only)
 
