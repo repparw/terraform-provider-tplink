@@ -25,3 +25,11 @@ resource "tplink_port_forward" "web" {
   protocol      = "TCP"
   enabled       = true
 }
+
+# Rules the LAN depends on (e.g. the gateway's own forwarding) should carry
+# lifecycle blocks so `tofu apply` can never destroy them in an unattended
+# run. The router's single-admin session also means applies interrupt any
+# interactive web-UI login — review plans before applying.
+# lifecycle {
+#   prevent_destroy = true
+# }

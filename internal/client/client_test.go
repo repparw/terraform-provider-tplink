@@ -254,8 +254,8 @@ func TestNormalizeMAC(t *testing.T) {
 		"aabb.ccdd.eeff":    "AA-BB-CC-DD-EE-FF",
 	}
 	for in, want := range cases {
-		if got := normalizeMAC(in); got != want {
-			t.Errorf("normalizeMAC(%q) = %q, want %q", in, got, want)
+		if got := NormalizeMAC(in); got != want {
+			t.Errorf("NormalizeMAC(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
@@ -263,4 +263,41 @@ func TestNormalizeMAC(t *testing.T) {
 func jsonRaw(v any) json.RawMessage {
 	b, _ := json.Marshal(v)
 	return b
+}
+
+// TestMACNormalizationEndToEnd exercises the round-trip the resource layer
+// relies on: a reservation written with a colon-lowercase MAC must be
+// readable and deletable under any equivalent spelling, and never produce a
+// second row.
+func TestMACNormalizationEndToEnd(t *testing.T) {
+	_, cl := startMock(t, "pw")
+	res := DHCPReservation{MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.0.60",
+		Hostname: "norm", Enabled: true}
+	if err := cl.AddDHCPReservation(res); err != nil {
+		t.Fatalf("AddDHCPReservation: %v", err)
+	}
+	for _, spelling := range []string{
+		"aa:bb:cc:dd:ee:01", "AA-BB-CC-DD-EE-01", "aabb.ccdd.ee01",
+	} {
+		got, err := cl.GetDHCPReservations()
+		if err != nil {
+			t.Fatal(err)
+		}
+		matches := 0
+		for _, r := range got {
+			if NormalizeMAC(r.MAC) == NormalizeMAC(spelling) {
+				matches++
+			}
+		}
+		if matches != 1 {
+			t.Fatalf("spelling %q resolved to %d rows, want 1: %+v", spelling, matches, got)
+		}
+	}
+	if err := cl.DeleteDHCPReservation("aabb.ccdd.ee01"); err != nil {
+		t.Fatalf("DeleteDHCPReservation(dotted): %v", err)
+	}
+	got, _ := cl.GetDHCPReservations()
+	if len(got) != 0 {
+		t.Fatalf("row not removed: %+v", got)
+	}
 }

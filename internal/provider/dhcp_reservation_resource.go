@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/repparw/terraform-provider-tplink/internal/client"
@@ -36,9 +37,11 @@ func (r *dhcpReservationResource) Schema(_ context.Context, _ resource.SchemaReq
 			"the MAC address replaces the row.",
 		Attributes: map[string]schema.Attribute{
 			"mac": schema.StringAttribute{
-				MarkdownDescription: "Device MAC address (colons, dashes or dots; normalized to dash-uppercase). Also the resource ID.",
-				Required:            true,
-				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				MarkdownDescription: "Device MAC address (colon, dash or Cisco dotted format; normalized " +
+					"to the router's dash-uppercase form). Also the resource ID.",
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace(), macNormalizer()},
+				Validators:    []validator.String{macFormatValidator()},
 			},
 			"ip": schema.StringAttribute{
 				MarkdownDescription: "IPv4 address assigned to the device.",
@@ -118,7 +121,7 @@ func (r *dhcpReservationResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 	for _, res := range created {
-		if res.MAC == plan.MAC.ValueString() {
+		if res.MAC == client.NormalizeMAC(plan.MAC.ValueString()) {
 			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res))...)
 			return
 		}
@@ -139,7 +142,7 @@ func (r *dhcpReservationResource) Read(ctx context.Context, req resource.ReadReq
 		return
 	}
 	for _, res := range reservations {
-		if res.MAC == state.MAC.ValueString() {
+		if res.MAC == client.NormalizeMAC(state.MAC.ValueString()) {
 			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res))...)
 			return
 		}
@@ -165,7 +168,7 @@ func (r *dhcpReservationResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 	for _, res := range updated {
-		if res.MAC == plan.MAC.ValueString() {
+		if res.MAC == client.NormalizeMAC(plan.MAC.ValueString()) {
 			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res))...)
 			return
 		}
@@ -190,7 +193,7 @@ func (r *dhcpReservationResource) Delete(ctx context.Context, req resource.Delet
 		return
 	}
 	for _, reservation := range remaining {
-		if reservation.MAC == state.MAC.ValueString() {
+		if reservation.MAC == client.NormalizeMAC(state.MAC.ValueString()) {
 			resp.Diagnostics.AddError("DHCP reservation still present after delete",
 				fmt.Sprintf("reservation %q remains configured on the router", state.MAC.ValueString()))
 			return
@@ -200,5 +203,5 @@ func (r *dhcpReservationResource) Delete(ctx context.Context, req resource.Delet
 
 func (r *dhcpReservationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Import ID is the MAC address.
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("mac"), req.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("mac"), client.NormalizeMAC(req.ID))...)
 }
