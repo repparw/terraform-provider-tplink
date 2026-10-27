@@ -135,5 +135,5 @@ gofmt -l . && go vet ./...
 
 ## License
 
-Apache-2.0. This project reimplements a documented wire protocol; it does
+MIT. This project reimplements a documented wire protocol; it does
 not incorporate code from GPL-licensed projects (see ARCHITECTURE.md).
