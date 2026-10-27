@@ -7,8 +7,8 @@ import (
 	"flag"
 	"log"
 
-	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	frameworkprovider "github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 
 	"github.com/repparw/terraform-provider-tplink/internal/provider"
 )
@@ -28,4 +28,5 @@ func main() {
 	}
 	if err := providerserver.Serve(context.Background(), func() frameworkprovider.Provider { return provider.New(version) }, opts); err != nil {
 		log.Fatal(err.Error())
-	}}
+	}
+}

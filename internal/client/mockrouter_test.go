@@ -33,11 +33,11 @@ import (
 type mockRouter struct {
 	t *testing.T
 
-	pwdKey  *rsa.PrivateKey
-	authKey *rsa.PrivateKey
-	seq     int
-	stok    string
-	sysauth string
+	pwdKey   *rsa.PrivateKey
+	authKey  *rsa.PrivateKey
+	seq      int
+	stok     string
+	sysauth  string
 	password string
 
 	authorized bool
@@ -279,13 +279,13 @@ func (m *mockRouter) handleAuthenticated(w http.ResponseWriter, r *http.Request)
 	operation := form.Get("operation")
 	switch operation {
 	case "read":
-		m.replyEncrypted(w, []byte(`{"success":true,"data":{"data":` + mockRows(m.state[pathKey]) + `}}`))
+		m.replyEncrypted(w, []byte(`{"success":true,"data":{"data":`+mockRows(m.state[pathKey])+`}}`))
 	case "load":
 		rows := m.state[pathKey]
 		if rows == nil {
 			rows = []map[string]any{}
 		}
-		m.replyEncrypted(w, []byte(`{"success":true,"data":` + mockRows(rows) + `}`))
+		m.replyEncrypted(w, []byte(`{"success":true,"data":`+mockRows(rows)+`}`))
 	case "insert":
 		var row map[string]any
 		if err := json.Unmarshal([]byte(form.Get("new")), &row); err != nil {
