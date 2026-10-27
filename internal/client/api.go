@@ -264,7 +264,7 @@ func (c *Client) GetDHCPReservations() ([]DHCPReservation, error) {
 // AddDHCPReservation creates a static address assignment.
 func (c *Client) AddDHCPReservation(r DHCPReservation) error {
 	row := map[string]any{
-		"mac":      normalizeMAC(r.MAC),
+		"mac":      NormalizeMAC(r.MAC),
 		"ip":       r.IP,
 		"hostname": r.Hostname,
 		"comment":  "",
@@ -277,7 +277,7 @@ func (c *Client) AddDHCPReservation(r DHCPReservation) error {
 
 // DeleteDHCPReservation removes the reservation matching a MAC address.
 func (c *Client) DeleteDHCPReservation(mac string) error {
-	key, index, err := c.findReservation(normalizeMAC(mac))
+	key, index, err := c.findReservation(NormalizeMAC(mac))
 	if err != nil {
 		return err
 	}
@@ -290,12 +290,12 @@ func (c *Client) DeleteDHCPReservation(mac string) error {
 // current MAC. Set MAC to the new address; the router matches rows by the
 // old payload.
 func (c *Client) UpdateDHCPReservation(currentMAC string, r DHCPReservation) error {
-	key, index, old, err := c.findReservationFull(normalizeMAC(currentMAC))
+	key, index, old, err := c.findReservationFull(NormalizeMAC(currentMAC))
 	if err != nil {
 		return err
 	}
 	newRow := map[string]any{
-		"mac":      normalizeMAC(r.MAC),
+		"mac":      NormalizeMAC(r.MAC),
 		"ip":       r.IP,
 		"hostname": r.Hostname,
 		"comment":  str(old, "comment"),
@@ -327,7 +327,7 @@ func (c *Client) findReservationFull(mac string) (key string, index int, row map
 		return "", 0, nil, err
 	}
 	for i, m := range list {
-		if normalizeMAC(str(m, "mac")) == mac {
+		if NormalizeMAC(str(m, "mac")) == mac {
 			return str(m, "mac"), i, m, nil
 		}
 	}
@@ -386,10 +386,26 @@ func normalizeProtocol(p string) (string, error) {
 	return "", fmt.Errorf("protocol must be TCP, UDP or ALL, got %q", p)
 }
 
-// normalizeMAC converts common MAC formats (colon, dash, or Cisco dotted)
+// IsMAC reports whether s is a parseable MAC address in colon, dash, or
+// Cisco dotted format (exactly 12 hex digits with only separators between).
+func IsMAC(s string) bool {
+	hexDigits := 0
+	for _, r := range s {
+		switch {
+		case r >= '0' && r <= '9', r >= 'a' && r <= 'f', r >= 'A' && r <= 'F':
+			hexDigits++
+		case r == ':' || r == '-' || r == '.':
+		default:
+			return false
+		}
+	}
+	return hexDigits == 12
+}
+
+// NormalizeMAC converts common MAC formats (colon, dash, or Cisco dotted)
 // to the dash-uppercase form the router stores. Unparsable input is
 // returned uppercased unchanged.
-func normalizeMAC(mac string) string {
+func NormalizeMAC(mac string) string {
 	var hexDigits strings.Builder
 	for _, r := range mac {
 		switch {
