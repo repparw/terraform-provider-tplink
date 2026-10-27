@@ -314,22 +314,21 @@ func (m *mockRouter) handleAuthenticated(w http.ResponseWriter, r *http.Request)
 		}
 		m.fail(w, "update: no row matches old payload")
 	case "remove":
-		var removed bool
 		key := form.Get("key")
+		index, err := strconv.Atoi(form.Get("index"))
 		rows := m.state[pathKey]
-		for idx, existing := range rows {
-			// Rows are identified by their natural key: name for port
-			// forwards, mac for reservations.
-			if existing["name"] == key || existing["mac"] == key {
-				m.state[pathKey] = append(rows[:idx], rows[idx+1:]...)
-				removed = true
-				break
-			}
-		}
-		if !removed {
-			m.fail(w, "remove: no row matches key")
+		if err != nil || index < 0 || index >= len(rows) {
+			m.fail(w, "remove: invalid row index")
 			return
 		}
+		existing := rows[index]
+		// Check BOTH fields: the real router requires a key and index.
+		// Checking only the key hid an index=0 bug in the DHCP client.
+		if existing["name"] != key && existing["mac"] != key {
+			m.fail(w, "remove: key/index mismatch")
+			return
+		}
+		m.state[pathKey] = append(rows[:index], rows[index+1:]...)
 		m.replyEncrypted(w, []byte(`{"success":true,"data":{}}`))
 	case "write":
 		// Scalar writes (DHCP server toggle, logout, ...): accept and succeed.

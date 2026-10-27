@@ -313,7 +313,7 @@ func (c *Client) UpdateDHCPReservation(currentMAC string, r DHCPReservation) err
 }
 
 func (c *Client) findReservation(mac string) (key string, index int, err error) {
-	key, _, _, err = c.findReservationFull(mac)
+	key, index, _, err = c.findReservationFull(mac)
 	return key, index, err
 }
 

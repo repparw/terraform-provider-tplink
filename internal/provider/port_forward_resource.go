@@ -181,7 +181,8 @@ func (r *portForwardResource) Update(ctx context.Context, req resource.UpdateReq
 			return
 		}
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+	resp.Diagnostics.AddError("Port forward missing after update",
+		fmt.Sprintf("rule %q was not readable after update", plan.Name.ValueString()))
 }
 
 func (r *portForwardResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -192,6 +193,19 @@ func (r *portForwardResource) Delete(ctx context.Context, req resource.DeleteReq
 	}
 	if err := r.client.DeletePortForward(state.Name.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Unable to delete port forward", err.Error())
+		return
+	}
+	remaining, err := r.client.GetPortForwards()
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to verify port forward deletion", err.Error())
+		return
+	}
+	for _, rule := range remaining {
+		if rule.Name == state.Name.ValueString() {
+			resp.Diagnostics.AddError("Port forward still present after delete",
+				fmt.Sprintf("rule %q remains configured on the router", state.Name.ValueString()))
+			return
+		}
 	}
 }
 

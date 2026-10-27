@@ -131,6 +131,32 @@ func TestProtocolConformance(t *testing.T) {
 	}
 }
 
+// TestDeleteNonFirstDHCPReservation ensures removal uses the selected row's
+// index and key, rather than always sending index=0. The mock enforces both.
+func TestDeleteNonFirstDHCPReservation(t *testing.T) {
+	_, cl := startMock(t, "pw")
+	reservations := []DHCPReservation{
+		{MAC: "00:11:22:33:44:01", IP: "192.168.0.101", Hostname: "first", Enabled: true},
+		{MAC: "00:11:22:33:44:02", IP: "192.168.0.102", Hostname: "middle", Enabled: true},
+		{MAC: "00:11:22:33:44:03", IP: "192.168.0.103", Hostname: "last", Enabled: true},
+	}
+	for _, reservation := range reservations {
+		if err := cl.AddDHCPReservation(reservation); err != nil {
+			t.Fatalf("AddDHCPReservation(%q): %v", reservation.MAC, err)
+		}
+	}
+	if err := cl.DeleteDHCPReservation("00:11:22:33:44:02"); err != nil {
+		t.Fatalf("DeleteDHCPReservation(middle): %v", err)
+	}
+	got, err := cl.GetDHCPReservations()
+	if err != nil {
+		t.Fatalf("GetDHCPReservations: %v", err)
+	}
+	if len(got) != 2 || got[0].MAC != "00-11-22-33-44-01" || got[1].MAC != "00-11-22-33-44-03" {
+		t.Fatalf("removed wrong DHCP reservation: %+v", got)
+	}
+}
+
 // TestAuthorizeWrongPassword verifies a wrong password surfaces as a login
 // failure and never retries (the router lockout rule).
 func TestAuthorizeWrongPassword(t *testing.T) {

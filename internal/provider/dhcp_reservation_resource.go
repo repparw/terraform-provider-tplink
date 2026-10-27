@@ -170,7 +170,8 @@ func (r *dhcpReservationResource) Update(ctx context.Context, req resource.Updat
 			return
 		}
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+	resp.Diagnostics.AddError("DHCP reservation missing after update",
+		fmt.Sprintf("reservation %q was not readable after update", plan.MAC.ValueString()))
 }
 
 func (r *dhcpReservationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -181,6 +182,19 @@ func (r *dhcpReservationResource) Delete(ctx context.Context, req resource.Delet
 	}
 	if err := r.client.DeleteDHCPReservation(state.MAC.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Unable to delete DHCP reservation", err.Error())
+		return
+	}
+	remaining, err := r.client.GetDHCPReservations()
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to verify DHCP reservation deletion", err.Error())
+		return
+	}
+	for _, reservation := range remaining {
+		if reservation.MAC == state.MAC.ValueString() {
+			resp.Diagnostics.AddError("DHCP reservation still present after delete",
+				fmt.Sprintf("reservation %q remains configured on the router", state.MAC.ValueString()))
+			return
+		}
 	}
 }
 
