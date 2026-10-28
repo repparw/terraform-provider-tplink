@@ -103,14 +103,14 @@ func renderTFVars(fw *client.Firmware, reservations []client.DHCPReservation,
 		fwModel(fw), fwVersion(fw))
 	fmt.Fprintln(&b, "dhcp_reservations = {")
 	for _, r := range reservations {
-		fmt.Fprintf(&b, "  %s = { ip = %q, hostname = %q, enabled = %t }\n",
+		fmt.Fprintf(&b, "  %q = { ip = %q, hostname = %q, enabled = %t }\n",
 			tfKey(r.MAC), r.IP, r.Hostname, r.Enabled)
 	}
 	fmt.Fprintln(&b, "}")
 	fmt.Fprintln(&b)
 	fmt.Fprintln(&b, "port_forwards = {")
 	for _, f := range forwards {
-		fmt.Fprintf(&b, "  %s = { ip = %q, external_port = %q, internal_port = %q, protocol = %q, enabled = %t }\n",
+		fmt.Fprintf(&b, "  %q = { ip = %q, external_port = %q, internal_port = %q, protocol = %q, enabled = %t }\n",
 			tfKey(f.Name), f.IP, f.ExternalPort, f.InternalPort, f.Protocol, f.Enabled)
 	}
 	fmt.Fprintln(&b, "}")
