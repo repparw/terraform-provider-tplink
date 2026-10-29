@@ -119,11 +119,12 @@ tofu import tplink_dhcp_reservation.pi "2C-CF-67-00-4F-47"
 - **Write verification.** Every create/update reads the row back
   afterwards; the router accepts unknown parameters silently, so read-back
   is the only reliable confirmation.
-- **Verified hardware.** Read operations and the protocol handshake are
-  verified against the AX23 v2 (see ARCHITECTURE.md). Create/update/delete
-  follow the router's own web-UI wire format byte-for-byte and are covered
-  by the protocol conformance test suite; live write verification is
-  tracked as a follow-up.
+- **Verified hardware.** The full managed-resource write cycle (create →
+  update → destroy of a disposable disabled reservation and port forward,
+  read-back verified after each step) and all read operations were executed
+  live through OpenTofu against the AX23 v2 on 2026-10-29, with the original
+  configuration verified intact afterwards. The protocol handshake is
+  additionally covered by the mock-router conformance test suite.
 
 ## Development
 

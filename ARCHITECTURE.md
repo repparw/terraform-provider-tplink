@@ -41,7 +41,12 @@ process-boundary tricks). The porting risk is contained because:
    implementation of the wire format, not against itself.
 3. `cmd/livescan` performs a read-only live check against real hardware and
    was run successfully against the AX23 v2 (2026-10-26: login, firmware,
-   status, devices, 12 DHCP reservations, 2 port forwards).
+   status, devices, 12 DHCP reservations, 2 port forwards). On 2026-10-29,
+   with explicit approval, the full managed-resource write cycle
+   (create → update → destroy of a disposable disabled reservation and port
+   forward, read-back verified after each step) was executed through
+   OpenTofu against the same router; the original configuration was
+   verified intact afterwards.
 
 ## Non-gotheses / consequences
 
