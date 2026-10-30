@@ -6,8 +6,10 @@ new-generation (SG-hardened) web UI — developed and verified against an
 generation as the Archer AX53, BE3600/BE230, and friends on the 2024-2026
 Vue UI).
 
-Implemented natively in Go (no Python runtime, no browser automation); see
-[ARCHITECTURE.md](ARCHITECTURE.md) for the decision record.
+Implemented natively in Go (no Python runtime, no browser automation). See
+[PROTOCOL.md](PROTOCOL.md) for the verified SG-hardened wire protocol and
+AX23 v2 hardware findings, and [ARCHITECTURE.md](ARCHITECTURE.md) for the
+implementation decision record.
 
 ## Requirements
 
