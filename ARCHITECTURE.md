@@ -6,9 +6,9 @@ Date: 2026-10-26. Status: accepted.
 
 This provider manages TP-Link home routers on the new-generation (SG-hardened)
 web UI — verified against an Archer AX23 v2.0, firmware 1.1.2 Build 20250814
-(SG_L1_S2 certification). The protocol is documented in
-[`repparw/nix` research note](https://github.com/repparw/nix/blob/main/docs/research/archer-ax23-api-opentofu.md)
-and upstream PR
+(SG_L1_S2 certification). The SG protocol and AX23 v2 hardware findings are documented in
+[PROTOCOL.md](PROTOCOL.md). The Python library's corresponding port-forward
+implementation is tracked in upstream PR
 [AlexandrErohin/TP-Link-Archer-C6U#248](https://github.com/AlexandrErohin/TP-Link-Archer-C6U/pull/248).
 
 Two implementation shapes were compared:
