@@ -39,16 +39,31 @@ class TPLinkProvider(BaseProvider):
         self.router = router
         self._authenticated = False
 
+    async def _authorize(self):
+        await asyncio.to_thread(self.router.authorize)
+        self._authenticated = True
+
     async def call(self, method, *args, **kwargs):
         """Serialize use of the single router session across parallel resources."""
         async with self.lock:
             if self.router is None:
                 raise RuntimeError("TP-Link provider has not been configured")
             if not self._authenticated:
-                await asyncio.to_thread(self.router.authorize)
-                self._authenticated = True
-            return await asyncio.to_thread(
-                getattr(self.router, method), *args, **kwargs)
+                await self._authorize()
+            try:
+                return await asyncio.to_thread(
+                    getattr(self.router, method), *args, **kwargs)
+            except Exception as exc:
+                # The router ends sessions on idle expiry or eviction by
+                # another admin, answering HTTP 200 with errorcode "timeout":
+                # the request was rejected before execution, so a single
+                # re-authenticate-and-retry is safe (mirrors the Go client).
+                if "timeout" not in str(exc).lower():
+                    raise
+                self._authenticated = False
+                await self._authorize()
+                return await asyncio.to_thread(
+                    getattr(self.router, method), *args, **kwargs)
 
     async def close(self):
         if self.router is not None:

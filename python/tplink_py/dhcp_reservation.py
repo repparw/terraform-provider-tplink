@@ -91,6 +91,10 @@ class DHCPReservation(BaseResource):
     async def _update(self, ctx, base_plan):
         # Changing the spelling of the same MAC must not delete a reservation.
         # Require replacement only if the normalized identity changes.
+        # Formatting-only edits converge in state at apply time (the apply
+        # stores the config spelling without touching the router); the plan
+        # must keep the config value verbatim because `mac` is required and
+        # non-computed — rewriting it here makes OpenTofu reject the plan.
         if (ctx.state is not None and ctx.config is not None
                 and normalized_mac(ctx.config.mac)
                 != normalized_mac(ctx.state.mac)):
