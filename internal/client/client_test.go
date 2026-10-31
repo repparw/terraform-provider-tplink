@@ -2,6 +2,9 @@ package client
 
 import (
 	"bytes"
+	"context"
+	"errors"
+	"net/http"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -378,5 +381,23 @@ func TestConcurrentDHCPDeletes(t *testing.T) {
 	}
 	if len(remaining) != 0 {
 		t.Fatalf("expected empty table, got %+v", remaining)
+	}
+}
+
+// Terraform cancellation must stop an in-flight router HTTP request promptly.
+func TestPostFormCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		<-req.Context().Done()
+	}))
+	defer server.Close()
+	cl, err := New(Config{Host: server.URL, Password: "pw"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = cl.postForm(server.URL, "operation=read", nil, "", ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected canceled HTTP request, got %v", err)
 	}
 }

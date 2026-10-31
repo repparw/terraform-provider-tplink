@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -132,8 +133,8 @@ func boolean(m map[string]any, key string) bool {
 }
 
 // GetFirmware reads model/hardware/firmware identification.
-func (c *Client) GetFirmware() (*Firmware, error) {
-	raw, err := c.do("admin/firmware?form=upgrade", url.Values{"operation": {"read"}})
+func (c *Client) GetFirmware(ctxs ...context.Context) (*Firmware, error) {
+	raw, err := c.do("admin/firmware?form=upgrade", url.Values{"operation": {"read"}}, ctxs...)
 	if err != nil {
 		return nil, err
 	}
@@ -149,8 +150,8 @@ func (c *Client) GetFirmware() (*Firmware, error) {
 }
 
 // GetStatus reads a summary of the router state and connected devices.
-func (c *Client) GetStatus() (*Status, error) {
-	raw, err := c.do("admin/status?form=all", url.Values{"operation": {"read"}})
+func (c *Client) GetStatus(ctxs ...context.Context) (*Status, error) {
+	raw, err := c.do("admin/status?form=all", url.Values{"operation": {"read"}}, ctxs...)
 	if err != nil {
 		return nil, err
 	}
@@ -199,8 +200,8 @@ func (c *Client) GetStatus() (*Status, error) {
 
 // GetDevices lists connected clients across wired, host, guest, and IoT
 // wireless segments.
-func (c *Client) GetDevices() ([]Device, error) {
-	raw, err := c.do("admin/status?form=all", url.Values{"operation": {"read"}})
+func (c *Client) GetDevices(ctxs ...context.Context) ([]Device, error) {
+	raw, err := c.do("admin/status?form=all", url.Values{"operation": {"read"}}, ctxs...)
 	if err != nil {
 		return nil, err
 	}
@@ -241,8 +242,8 @@ func (c *Client) GetDevices() ([]Device, error) {
 }
 
 // GetDHCPReservations lists the static DHCP address assignments.
-func (c *Client) GetDHCPReservations() ([]DHCPReservation, error) {
-	raw, err := c.do("admin/dhcps?form=reservation", url.Values{"operation": {"load"}})
+func (c *Client) GetDHCPReservations(ctxs ...context.Context) ([]DHCPReservation, error) {
+	raw, err := c.do("admin/dhcps?form=reservation", url.Values{"operation": {"load"}}, ctxs...)
 	if err != nil {
 		return nil, err
 	}
@@ -263,12 +264,12 @@ func (c *Client) GetDHCPReservations() ([]DHCPReservation, error) {
 }
 
 // AddDHCPReservation creates a static address assignment.
-func (c *Client) AddDHCPReservation(r DHCPReservation) error {
+func (c *Client) AddDHCPReservation(r DHCPReservation, ctxs ...context.Context) error {
 	c.mutationMu.Lock()
 	defer c.mutationMu.Unlock()
 	// Verify uniqueness before creating: blindly inserting can leave an
 	// unmanageable ambiguous duplicate if the router accepts repeated keys.
-	existing, err := c.GetDHCPReservations()
+	existing, err := c.GetDHCPReservations(, ctxs...)
 	if err != nil {
 		return err
 	}
@@ -286,14 +287,14 @@ func (c *Client) AddDHCPReservation(r DHCPReservation) error {
 	}
 	newJSON, _ := json.Marshal(row)
 	return c.writeTable("admin/dhcps?form=reservation",
-		url.Values{"operation": {"insert"}, "new": {string(newJSON)}})
+		url.Values{"operation": {"insert"}, "new": {string(newJSON)}}, ctxs...)
 }
 
 // DeleteDHCPReservation removes the reservation matching a MAC address.
-func (c *Client) DeleteDHCPReservation(mac string) error {
+func (c *Client) DeleteDHCPReservation(mac string, ctxs ...context.Context) error {
 	c.mutationMu.Lock()
 	defer c.mutationMu.Unlock()
-	key, index, err := c.findReservation(NormalizeMAC(mac))
+	key, index, err := c.findReservation(NormalizeMAC(mac), ctxs...)
 	if isNotFound(err) {
 		return nil // Delete is idempotent if another actor already removed it.
 	}
@@ -302,16 +303,16 @@ func (c *Client) DeleteDHCPReservation(mac string) error {
 	}
 	return c.writeTable("admin/dhcps?form=reservation", url.Values{
 		"operation": {"remove"}, "key": {key}, "index": {strconv.Itoa(index)},
-	})
+	}, ctxs...)
 }
 
 // UpdateDHCPReservation changes an existing reservation identified by its
 // current MAC. Set MAC to the new address; the router matches rows by the
 // old payload.
-func (c *Client) UpdateDHCPReservation(currentMAC string, r DHCPReservation) error {
+func (c *Client) UpdateDHCPReservation(currentMAC string, r DHCPReservation, ctxs ...context.Context) error {
 	c.mutationMu.Lock()
 	defer c.mutationMu.Unlock()
-	key, index, old, err := c.findReservationFull(NormalizeMAC(currentMAC))
+	key, index, old, err := c.findReservationFull(NormalizeMAC(currentMAC), ctxs...)
 	if err != nil {
 		return err
 	}
@@ -330,16 +331,16 @@ func (c *Client) UpdateDHCPReservation(currentMAC string, r DHCPReservation) err
 		"index":     {strconv.Itoa(index)},
 		"new":       {string(newJSON)},
 		"old":       {string(oldJSON)},
-	})
+	}, ctxs...)
 }
 
-func (c *Client) findReservation(mac string) (key string, index int, err error) {
-	key, index, _, err = c.findReservationFull(mac)
+func (c *Client) findReservation(mac string, ctxs ...context.Context) (key string, index int, err error) {
+	key, index, _, err = c.findReservationFull(mac, ctxs...)
 	return key, index, err
 }
 
-func (c *Client) findReservationFull(mac string) (key string, index int, row map[string]any, err error) {
-	raw, err := c.do("admin/dhcps?form=reservation", url.Values{"operation": {"load"}})
+func (c *Client) findReservationFull(mac string, ctxs ...context.Context) (key string, index int, row map[string]any, err error) {
+	raw, err := c.do("admin/dhcps?form=reservation", url.Values{"operation": {"load"}}, ctxs...)
 	if err != nil {
 		return "", 0, nil, err
 	}
@@ -357,8 +358,8 @@ func (c *Client) findReservationFull(mac string) (key string, index int, row map
 }
 
 // GetPortForwards lists the virtual-server (port forwarding) rules.
-func (c *Client) GetPortForwards() ([]PortForward, error) {
-	raw, err := c.do("admin/nat?form=vs", url.Values{"operation": {"load"}})
+func (c *Client) GetPortForwards(ctxs ...context.Context) ([]PortForward, error) {
+	raw, err := c.do("admin/nat?form=vs", url.Values{"operation": {"load"}}, ctxs...)
 	if err != nil {
 		return nil, err
 	}
@@ -460,7 +461,7 @@ func onOff(b bool) string {
 }
 
 // AddPortForward creates a virtual-server rule.
-func (c *Client) AddPortForward(r PortForward) error {
+func (c *Client) AddPortForward(r PortForward, ctxs ...context.Context) error {
 	c.mutationMu.Lock()
 	defer c.mutationMu.Unlock()
 	if strings.TrimSpace(r.Name) == "" {
@@ -484,7 +485,7 @@ func (c *Client) AddPortForward(r PortForward) error {
 		"protocol":      protocol,
 		"enable":        onOff(r.Enabled),
 	}
-	existing, err := c.GetPortForwards()
+	existing, err := c.GetPortForwards(, ctxs...)
 	if err != nil {
 		return err
 	}
@@ -495,13 +496,13 @@ func (c *Client) AddPortForward(r PortForward) error {
 	}
 	newJSON, _ := json.Marshal(row)
 	return c.writeTable("admin/nat?form=vs",
-		url.Values{"operation": {"insert"}, "new": {string(newJSON)}})
+		url.Values{"operation": {"insert"}, "new": {string(newJSON)}}, ctxs...)
 }
 
 // UpdatePortForward changes an existing rule identified by its current name.
 // The router matches the row by the old payload (the web UI regenerates row
 // keys client-side on every render).
-func (c *Client) UpdatePortForward(currentName string, r PortForward) error {
+func (c *Client) UpdatePortForward(currentName string, r PortForward, ctxs ...context.Context) error {
 	c.mutationMu.Lock()
 	defer c.mutationMu.Unlock()
 	if strings.TrimSpace(r.Name) == "" {
@@ -517,7 +518,7 @@ func (c *Client) UpdatePortForward(currentName string, r PortForward) error {
 	if err := validatePort(r.InternalPort, false); err != nil {
 		return err
 	}
-	raw, err := c.do("admin/nat?form=vs", url.Values{"operation": {"load"}})
+	raw, err := c.do("admin/nat?form=vs", url.Values{"operation": {"load"}}, ctxs...)
 	if err != nil {
 		return err
 	}
@@ -552,14 +553,14 @@ func (c *Client) UpdatePortForward(currentName string, r PortForward) error {
 		"index":     {strconv.Itoa(index)},
 		"new":       {string(newJSON)},
 		"old":       {string(oldJSON)},
-	})
+	}, ctxs...)
 }
 
 // DeletePortForward removes the rule with the given name.
-func (c *Client) DeletePortForward(name string) error {
+func (c *Client) DeletePortForward(name string, ctxs ...context.Context) error {
 	c.mutationMu.Lock()
 	defer c.mutationMu.Unlock()
-	raw, err := c.do("admin/nat?form=vs", url.Values{"operation": {"load"}})
+	raw, err := c.do("admin/nat?form=vs", url.Values{"operation": {"load"}}, ctxs...)
 	if err != nil {
 		return err
 	}
@@ -571,14 +572,14 @@ func (c *Client) DeletePortForward(name string) error {
 		if str(m, "name") == name {
 			return c.writeTable("admin/nat?form=vs", url.Values{
 				"operation": {"remove"}, "key": {name}, "index": {strconv.Itoa(i)},
-			})
+			}, ctxs...)
 		}
 	}
 	return nil // Deleting an already-absent rule is successful.
 }
 
-func (c *Client) writeTable(path string, form url.Values) error {
-	_, err := c.do(path, form)
+func (c *Client) writeTable(path string, form url.Values, ctxs ...context.Context) error {
+	_, err := c.do(path, form, ctxs...)
 	return err
 }
 
