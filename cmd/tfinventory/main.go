@@ -50,8 +50,11 @@ func main() {
 
 	var reservations []client.DHCPReservation
 	var forwards []client.PortForward
-	fw, _ := cl.GetFirmware()
+	var fw *client.Firmware
 	if err := withReads(cl, func() error {
+		// Keep firmware and inventory reads in the same authenticated session.
+		// A second login evicts the first on this router.
+		fw, _ = cl.GetFirmware()
 		var err error
 		if reservations, err = cl.GetDHCPReservations(); err != nil {
 			return err

@@ -72,7 +72,9 @@ See [examples/](examples/) for complete configurations.
 ### `tplink_dhcp_reservation`
 
 A static DHCP address assignment, identified by the device **MAC address**
-(import ID: the MAC). The provider accepts colon, dash, or Cisco-dotted MACs and retains the configured spelling in Terraform state; the router identity and resource ID are normalized.
+(import ID: the MAC). The provider accepts colon, dash or Cisco-dotted MACs,
+preserving the configured spelling in Terraform state. The router identity and
+resource ID are normalized.
 
 ```hcl
 resource "tplink_dhcp_reservation" "printer" {
