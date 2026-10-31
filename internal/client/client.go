@@ -37,7 +37,6 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	mathrand "math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -71,6 +70,7 @@ type Client struct {
 	http     *http.Client
 
 	mu          sync.Mutex
+	mutationMu  sync.Mutex // covers multi-request table operations
 	aesKey      string
 	aesIV       string
 	seq         int
@@ -129,12 +129,18 @@ func New(cfg Config) (*Client, error) {
 	}, nil
 }
 
-func randomDigits(n int) string {
+func randomDigits(n int) (string, error) {
 	b := make([]byte, n)
 	for i := range b {
-		b[i] = byte('0' + mathrand.Intn(10)) //nolint:gosec // matches the router JS: key material is digits
+		// Preserve the router protocol's decimal-digit key format, but draw
+		// each digit from a cryptographically secure, unbiased source.
+		digit, err := rand.Int(rand.Reader, big.NewInt(10))
+		if err != nil {
+			return "", fmt.Errorf("tplink: generate session key: %w", err)
+		}
+		b[i] = '0' + byte(digit.Int64())
 	}
-	return string(b)
+	return string(b), nil
 }
 
 func (c *Client) formURL(stok, path string) string {
@@ -173,8 +179,15 @@ func (c *Client) authorizeLocked() error {
 		return err
 	}
 
-	c.aesKey = randomDigits(aesKeyLen)
-	c.aesIV = randomDigits(aesKeyLen)
+	var err error
+	c.aesKey, err = randomDigits(aesKeyLen)
+	if err != nil {
+		return err
+	}
+	c.aesIV, err = randomDigits(aesKeyLen)
+	if err != nil {
+		return err
+	}
 
 	encryptedPwd, err := rsaV15Encrypt([]byte(c.password), c.pwdNN, c.pwdEE)
 	if err != nil {

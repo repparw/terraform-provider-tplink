@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -263,6 +264,19 @@ func (c *Client) GetDHCPReservations() ([]DHCPReservation, error) {
 
 // AddDHCPReservation creates a static address assignment.
 func (c *Client) AddDHCPReservation(r DHCPReservation) error {
+	c.mutationMu.Lock()
+	defer c.mutationMu.Unlock()
+	// Verify uniqueness before creating: blindly inserting can leave an
+	// unmanageable ambiguous duplicate if the router accepts repeated keys.
+	existing, err := c.GetDHCPReservations()
+	if err != nil {
+		return err
+	}
+	for _, row := range existing {
+		if NormalizeMAC(row.MAC) == NormalizeMAC(r.MAC) {
+			return fmt.Errorf("tplink: DHCP reservation %s already exists; import it instead", NormalizeMAC(r.MAC))
+		}
+	}
 	row := map[string]any{
 		"mac":      NormalizeMAC(r.MAC),
 		"ip":       r.IP,
@@ -277,7 +291,12 @@ func (c *Client) AddDHCPReservation(r DHCPReservation) error {
 
 // DeleteDHCPReservation removes the reservation matching a MAC address.
 func (c *Client) DeleteDHCPReservation(mac string) error {
+	c.mutationMu.Lock()
+	defer c.mutationMu.Unlock()
 	key, index, err := c.findReservation(NormalizeMAC(mac))
+	if isNotFound(err) {
+		return nil // Delete is idempotent if another actor already removed it.
+	}
 	if err != nil {
 		return err
 	}
@@ -290,6 +309,8 @@ func (c *Client) DeleteDHCPReservation(mac string) error {
 // current MAC. Set MAC to the new address; the router matches rows by the
 // old payload.
 func (c *Client) UpdateDHCPReservation(currentMAC string, r DHCPReservation) error {
+	c.mutationMu.Lock()
+	defer c.mutationMu.Unlock()
 	key, index, old, err := c.findReservationFull(NormalizeMAC(currentMAC))
 	if err != nil {
 		return err
@@ -440,6 +461,8 @@ func onOff(b bool) string {
 
 // AddPortForward creates a virtual-server rule.
 func (c *Client) AddPortForward(r PortForward) error {
+	c.mutationMu.Lock()
+	defer c.mutationMu.Unlock()
 	if strings.TrimSpace(r.Name) == "" {
 		return fmt.Errorf("port forward name must not be empty")
 	}
@@ -461,6 +484,15 @@ func (c *Client) AddPortForward(r PortForward) error {
 		"protocol":      protocol,
 		"enable":        onOff(r.Enabled),
 	}
+	existing, err := c.GetPortForwards()
+	if err != nil {
+		return err
+	}
+	for _, current := range existing {
+		if current.Name == r.Name {
+			return fmt.Errorf("tplink: port forward %q already exists; import it instead", r.Name)
+		}
+	}
 	newJSON, _ := json.Marshal(row)
 	return c.writeTable("admin/nat?form=vs",
 		url.Values{"operation": {"insert"}, "new": {string(newJSON)}})
@@ -470,6 +502,8 @@ func (c *Client) AddPortForward(r PortForward) error {
 // The router matches the row by the old payload (the web UI regenerates row
 // keys client-side on every render).
 func (c *Client) UpdatePortForward(currentName string, r PortForward) error {
+	c.mutationMu.Lock()
+	defer c.mutationMu.Unlock()
 	if strings.TrimSpace(r.Name) == "" {
 		return fmt.Errorf("port forward name must not be empty")
 	}
@@ -523,6 +557,8 @@ func (c *Client) UpdatePortForward(currentName string, r PortForward) error {
 
 // DeletePortForward removes the rule with the given name.
 func (c *Client) DeletePortForward(name string) error {
+	c.mutationMu.Lock()
+	defer c.mutationMu.Unlock()
 	raw, err := c.do("admin/nat?form=vs", url.Values{"operation": {"load"}})
 	if err != nil {
 		return err
@@ -538,10 +574,15 @@ func (c *Client) DeletePortForward(name string) error {
 			})
 		}
 	}
-	return &RouterError{Path: "admin/nat?form=vs", Code: "not found: port forward " + name}
+	return nil // Deleting an already-absent rule is successful.
 }
 
 func (c *Client) writeTable(path string, form url.Values) error {
 	_, err := c.do(path, form)
 	return err
+}
+
+func isNotFound(err error) bool {
+	var routerErr *RouterError
+	return errors.As(err, &routerErr) && strings.HasPrefix(routerErr.Code, "not found:")
 }
