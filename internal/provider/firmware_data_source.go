@@ -61,7 +61,7 @@ func (d *firmwareDataSource) Read(ctx context.Context, _ datasource.ReadRequest,
 		resp.Diagnostics.AddError("Provider not configured", "router client is missing")
 		return
 	}
-	fw, err := d.client.GetFirmware()
+	fw, err := d.client.GetFirmware(, ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read firmware", err.Error())
 		return

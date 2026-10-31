@@ -126,11 +126,11 @@ func (r *portForwardResource) Create(ctx context.Context, req resource.CreateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.AddPortForward(toClientPortForward(plan)); err != nil {
+	if err := r.client.AddPortForward(toClientPortForward(plan), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to create port forward", err.Error())
 		return
 	}
-	created, err := r.client.GetPortForwards()
+	created, err := r.client.GetPortForwards(, ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify port forward after write", err.Error())
 		return
@@ -156,7 +156,7 @@ func (r *portForwardResource) Read(ctx context.Context, req resource.ReadRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	rules, err := r.client.GetPortForwards()
+	rules, err := r.client.GetPortForwards(, ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read port forwards", err.Error())
 		return
@@ -177,11 +177,11 @@ func (r *portForwardResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 	// Name changes are force-replaced, so state name == plan name here.
-	if err := r.client.UpdatePortForward(plan.Name.ValueString(), toClientPortForward(plan)); err != nil {
+	if err := r.client.UpdatePortForward(plan.Name.ValueString(), toClientPortForward(plan), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to update port forward", err.Error())
 		return
 	}
-	updated, err := r.client.GetPortForwards()
+	updated, err := r.client.GetPortForwards(, ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify port forward after write", err.Error())
 		return
@@ -207,11 +207,11 @@ func (r *portForwardResource) Delete(ctx context.Context, req resource.DeleteReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.DeletePortForward(state.Name.ValueString()); err != nil {
+	if err := r.client.DeletePortForward(state.Name.ValueString(), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to delete port forward", err.Error())
 		return
 	}
-	remaining, err := r.client.GetPortForwards()
+	remaining, err := r.client.GetPortForwards(, ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify port forward deletion", err.Error())
 		return

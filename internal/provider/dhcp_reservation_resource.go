@@ -110,11 +110,11 @@ func (r *dhcpReservationResource) Create(ctx context.Context, req resource.Creat
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.AddDHCPReservation(toClientReservation(plan)); err != nil {
+	if err := r.client.AddDHCPReservation(toClientReservation(plan), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to create DHCP reservation", err.Error())
 		return
 	}
-	created, err := r.client.GetDHCPReservations()
+	created, err := r.client.GetDHCPReservations(, ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify DHCP reservation after write", err.Error())
 		return
@@ -140,7 +140,7 @@ func (r *dhcpReservationResource) Read(ctx context.Context, req resource.ReadReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	reservations, err := r.client.GetDHCPReservations()
+	reservations, err := r.client.GetDHCPReservations(, ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read DHCP reservations", err.Error())
 		return
@@ -162,11 +162,11 @@ func (r *dhcpReservationResource) Update(ctx context.Context, req resource.Updat
 	}
 	// The MAC is force-replaced, so the state MAC equals the plan MAC here;
 	// hostname/ip/enabled are updated in place.
-	if err := r.client.UpdateDHCPReservation(plan.MAC.ValueString(), toClientReservation(plan)); err != nil {
+	if err := r.client.UpdateDHCPReservation(plan.MAC.ValueString(), toClientReservation(plan), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to update DHCP reservation", err.Error())
 		return
 	}
-	updated, err := r.client.GetDHCPReservations()
+	updated, err := r.client.GetDHCPReservations(, ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify DHCP reservation after write", err.Error())
 		return
@@ -192,11 +192,11 @@ func (r *dhcpReservationResource) Delete(ctx context.Context, req resource.Delet
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.DeleteDHCPReservation(state.MAC.ValueString()); err != nil {
+	if err := r.client.DeleteDHCPReservation(state.MAC.ValueString(), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to delete DHCP reservation", err.Error())
 		return
 	}
-	remaining, err := r.client.GetDHCPReservations()
+	remaining, err := r.client.GetDHCPReservations(, ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify DHCP reservation deletion", err.Error())
 		return
