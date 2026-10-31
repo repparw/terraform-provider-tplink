@@ -65,7 +65,7 @@ class PortForward(BaseResource):
     def get_schema(cls) -> PvsSchema:
         return s_resource({
             "id": a_str(computed=True),
-            "name": a_str(required=True),
+            "name": a_str(required=True, requires_replace=True),
             "ip": a_str(required=True),
             "external_port": a_str(required=True),
             "internal_port": a_str(required=True),
@@ -112,6 +112,12 @@ class PortForward(BaseResource):
             internal_port=cfg.internal_port,
             ipaddr=cfg.ip, protocol=cfg.protocol, enable=cfg.enabled)
         return await verified_forward(cfg.name, cfg), None
+
+    async def import_state(self, ctx: ResourceContext, import_id: str):
+        state = await verified_forward(import_id)
+        if state is None:
+            raise RuntimeError("Port forward to import does not exist")
+        return state
 
     async def _delete_apply(self, ctx: ResourceContext):
         if ctx.state and await verified_forward(ctx.state.name):
