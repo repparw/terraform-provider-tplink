@@ -80,4 +80,5 @@ def test_provider_schema_includes_router_config():
     instance = TPLinkProvider()
     asyncio.run(instance.setup())
     names = instance.schema.block.attributes.keys()
-    assert {"host", "username", "password", "verify_ssl"} <= set(names)
+    assert {"host", "username", "password", "tls_skip_verify",
+            "timeout_seconds"} <= set(names)

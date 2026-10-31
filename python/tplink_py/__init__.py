@@ -31,7 +31,9 @@ class TPLinkProvider(BaseProvider):
         # discovery is upstream. Never call the legacy get_client() detector.
         router = TplinkRouterSG(
             config.host, config.password,
-            username=config.username, verify_ssl=config.verify_ssl)
+            username=config.username,
+            verify_ssl=not bool(config.tls_skip_verify),
+            timeout=int(config.timeout_seconds or 30))
         # Do not evict a router GUI session merely for Terraform configure.
         # Authorize only when the first read/write actually needs the router.
         self.router = router

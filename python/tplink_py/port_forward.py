@@ -27,19 +27,25 @@ class PortForwardState:
     enabled: bool
 
 
-def state_from_rule(rule):
+def state_from_rule(rule, configured_protocol=None):
+    # Preserve the practitioner's protocol spelling on a case-insensitive
+    # router. Terraform otherwise rejects a post-apply drift in configured
+    # "tcp" vs the router's canonical "TCP".
+    protocol = rule.protocol
+    if configured_protocol and configured_protocol.upper() == rule.protocol.upper():
+        protocol = configured_protocol
     return PortForwardState(
         id=rule.name,
         name=rule.name,
         ip=rule.ipaddr,
         external_port=rule.external_port,
         internal_port=rule.internal_port,
-        protocol=rule.protocol,
+        protocol=protocol,
         enabled=rule.enabled,
     )
 
 
-async def verified_forward(name, expected=None):
+async def verified_forward(name, expected=None, configured_protocol=None):
     rules = await provider().call("get_ipv4_port_forwards")
     match = matching_forward(rules, name)
     if expected is not None:
@@ -53,7 +59,9 @@ async def verified_forward(name, expected=None):
             and match.enabled == expected.enabled
         ):
             raise RuntimeError("Router returned values different from the plan")
-    return state_from_rule(match) if match else None
+    return state_from_rule(
+        match, configured_protocol or (expected.protocol if expected else None)
+    ) if match else None
 
 
 @register_resource("tplink_port_forward")
@@ -70,7 +78,7 @@ class PortForward(BaseResource):
             "external_port": a_str(required=True),
             "internal_port": a_str(required=True),
             "protocol": a_str(required=True),
-            "enabled": a_bool(default=True),
+            "enabled": a_bool(optional=True, computed=True, default=True),
         })
 
     async def _validate_config(self, config: PortForwardConfig) -> list[str]:
@@ -99,7 +107,8 @@ class PortForward(BaseResource):
     async def read(self, ctx: ResourceContext):
         if ctx.state is None:
             return None
-        return await verified_forward(ctx.state.name)
+        return await verified_forward(
+            ctx.state.name, configured_protocol=ctx.state.protocol)
 
     async def _update_apply(self, ctx: ResourceContext):
         cfg = ctx.config

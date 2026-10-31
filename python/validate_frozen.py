@@ -51,7 +51,7 @@ def main():
         assert len(schemas) == 1, schemas.keys()
         data = next(iter(schemas.values()))
         attrs = data["provider"]["block"]["attributes"]
-        assert {"host", "password", "username", "verify_ssl"} <= attrs.keys()
+        assert {"host", "password", "username", "tls_skip_verify", "timeout_seconds"} <= attrs.keys()
         assert {"tplink_port_forward", "tplink_dhcp_reservation"} <= (
             data["resource_schemas"].keys()
         )

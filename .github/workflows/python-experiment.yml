@@ -88,7 +88,7 @@ jobs:
           schemas = list(data["provider_schemas"].values())
           assert len(schemas) == 1, list(data["provider_schemas"])
           attributes = schemas[0]["provider"]["block"]["attributes"]
-          assert {"host", "username", "password", "verify_ssl"} <= set(attributes)
+          assert {"host", "username", "password", "tls_skip_verify", "timeout_seconds"} <= set(attributes)
           assert "tplink_firmware" in schemas[0]["data_source_schemas"]
           assert "tplink_port_forward" in schemas[0]["resource_schemas"]
           PY

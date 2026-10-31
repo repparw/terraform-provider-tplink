@@ -118,3 +118,20 @@ def test_no_login_on_configuration():
             host="http://router", username="admin",
             password="secret", verify_ssl=True)))
     assert not inst._authenticated
+
+def test_port_protocol_case_preserved():
+    from tplink_py.port_forward import state_from_rule
+    rule = Obj(name="web", ipaddr="192.168.0.8", external_port="443",
+               internal_port="8443", protocol="TCP", enabled=True)
+    state = state_from_rule(rule, configured_protocol="tcp")
+    assert state.protocol == "tcp"
+
+
+def test_port_enabled_default_and_go_provider_config_fields():
+    from tplink_py.port_forward import PortForward
+    field = PortForward.get_schema().block.attributes["enabled"]
+    assert field.optional and field.computed
+    from tplink_py.capability import RouterCapability
+    config = RouterCapability.get_schema_contribution()
+    assert "tls_skip_verify" in config
+    assert "timeout_seconds" in config
