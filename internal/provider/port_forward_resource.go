@@ -171,13 +171,15 @@ func (r *portForwardResource) Read(ctx context.Context, req resource.ReadRequest
 }
 
 func (r *portForwardResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan portForwardModel
+	var plan, prior portForwardModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	writePlan := portForwardWritePlan(plan, prior)
 	// Name changes are force-replaced, so state name == plan name here.
-	if err := r.client.UpdatePortForward(plan.Name.ValueString(), toClientPortForward(plan), ctx); err != nil {
+	if err := r.client.UpdatePortForward(plan.Name.ValueString(), toClientPortForward(writePlan), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to update port forward", err.Error())
 		return
 	}
@@ -238,4 +240,13 @@ func portForwardMatchesPlan(res client.PortForward, plan portForwardModel) bool 
 		res.InternalPort == plan.InternalPort.ValueString() &&
 		strings.EqualFold(res.Protocol, plan.Protocol.ValueString()) &&
 		(plan.Enabled.IsUnknown() || res.Enabled == plan.Enabled.ValueBool())
+}
+
+// portForwardWritePlan prevents an unknown computed enabled flag from
+// becoming false when another property is updated.
+func portForwardWritePlan(plan, prior portForwardModel) portForwardModel {
+	if plan.Enabled.IsUnknown() {
+		plan.Enabled = prior.Enabled
+	}
+	return plan
 }

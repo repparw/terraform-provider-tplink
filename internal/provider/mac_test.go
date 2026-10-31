@@ -86,3 +86,30 @@ func TestPortForwardResourceStatePreservesProtocol(t *testing.T) {
 		t.Fatalf("unexpected protocol: %s", got.Protocol.ValueString())
 	}
 }
+
+func TestComputedAttributesArePreservedDuringUpdates(t *testing.T) {
+	t.Run("DHCP unknown hostname and enabled", func(t *testing.T) {
+		plan := dhcpReservationModel{Hostname: types.StringUnknown(), Enabled: types.BoolUnknown()}
+		prior := dhcpReservationModel{Hostname: types.StringValue("existing"), Enabled: types.BoolValue(true)}
+		got := reservationWritePlan(plan, prior)
+		if got.Hostname.ValueString() != "existing" || !got.Enabled.ValueBool() {
+			t.Fatalf("unknown optional fields lost existing values: %+v", got)
+		}
+	})
+	t.Run("DHCP explicit clearing remains possible", func(t *testing.T) {
+		plan := dhcpReservationModel{Hostname: types.StringValue(""), Enabled: types.BoolValue(false)}
+		prior := dhcpReservationModel{Hostname: types.StringValue("existing"), Enabled: types.BoolValue(true)}
+		got := reservationWritePlan(plan, prior)
+		if got.Hostname.ValueString() != "" || got.Enabled.ValueBool() {
+			t.Fatalf("explicit changes were overwritten: %+v", got)
+		}
+	})
+	t.Run("port forward unknown enabled", func(t *testing.T) {
+		plan := portForwardModel{Enabled: types.BoolUnknown()}
+		prior := portForwardModel{Enabled: types.BoolValue(true)}
+		got := portForwardWritePlan(plan, prior)
+		if !got.Enabled.ValueBool() {
+			t.Fatalf("unknown enabled disabled existing rule: %+v", got)
+		}
+	})
+}

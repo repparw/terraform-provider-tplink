@@ -156,15 +156,19 @@ func (r *dhcpReservationResource) Read(ctx context.Context, req resource.ReadReq
 }
 
 func (r *dhcpReservationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan dhcpReservationModel
+	var plan, prior dhcpReservationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// Optional+Computed fields can be unknown in an update plan. Sending
+	// their zero values would silently clear a hostname or disable a row.
+	writePlan := reservationWritePlan(plan, prior)
 	// A change of normalized MAC identity requires replacement. A change of
 	// spelling alone updates Terraform state without changing the router row.
 	// hostname/ip/enabled are updated in place.
-	if err := r.client.UpdateDHCPReservation(plan.MAC.ValueString(), toClientReservation(plan), ctx); err != nil {
+	if err := r.client.UpdateDHCPReservation(plan.MAC.ValueString(), toClientReservation(writePlan), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to update DHCP reservation", err.Error())
 		return
 	}
@@ -224,4 +228,16 @@ func reservationMatchesPlan(res client.DHCPReservation, plan dhcpReservationMode
 		res.IP == plan.IP.ValueString() &&
 		(plan.Hostname.IsUnknown() || plan.Hostname.IsNull() || res.Hostname == plan.Hostname.ValueString()) &&
 		(plan.Enabled.IsUnknown() || res.Enabled == plan.Enabled.ValueBool())
+}
+
+// reservationWritePlan preserves existing values when Terraform is computing
+// Optional+Computed attributes rather than explicitly configuring new ones.
+func reservationWritePlan(plan, prior dhcpReservationModel) dhcpReservationModel {
+	if plan.Hostname.IsUnknown() {
+		plan.Hostname = prior.Hostname
+	}
+	if plan.Enabled.IsUnknown() {
+		plan.Enabled = prior.Enabled
+	}
+	return plan
 }
