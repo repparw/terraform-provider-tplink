@@ -32,6 +32,9 @@ class Firmware(BaseDataSource):
             "firmware_version": a_str(computed=True),
         })
 
+    async def _validate_config(self, config: FirmwareConfig) -> list[str]:
+        return []
+
     async def read(self, ctx: ResourceContext) -> FirmwareState:
         info = await provider().call("get_firmware")
         return FirmwareState(

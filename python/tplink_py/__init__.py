@@ -21,14 +21,8 @@ class TPLinkProvider(BaseProvider):
         self.router = None
         self.lock = asyncio.Lock()
 
-    @classmethod
-    def get_schema(cls) -> PvsSchema:
-        return s_provider({
-            "host": a_str(required=True, description="Router HTTP URL."),
-            "username": a_str(default="admin"),
-            "password": a_str(required=True, sensitive=True),
-            "verify_ssl": a_bool(default=True),
-        })
+    # Pyvider 0.8.x composes the schema from registered capabilities.
+    # RouterCapability provides the host, username and password attributes.
 
     async def configure(self, config):
         await super().configure(config)

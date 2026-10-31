@@ -7,6 +7,8 @@ from tplink_py.common import matching_forward
 from tplink_py.port_forward import (
     PortForward, PortForwardConfig, verified_forward,
 )
+from tplink_py.firmware import Firmware
+from tplink_py import TPLinkProvider
 
 
 def test_duplicate_names_fail_closed():
@@ -61,3 +63,15 @@ def test_update_preserves_identity():
         assert "replacement" in str(error)
     else:
         raise AssertionError("identity changed in place")
+
+
+def test_components_are_instantiable():
+    assert isinstance(PortForward(), PortForward)
+    assert isinstance(Firmware(), Firmware)
+
+
+def test_provider_schema_includes_router_config():
+    instance = TPLinkProvider()
+    asyncio.run(instance.setup())
+    names = instance.schema().block.attributes.keys()
+    assert {"host", "username", "password", "verify_ssl"} <= set(names)
