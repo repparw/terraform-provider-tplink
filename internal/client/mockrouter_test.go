@@ -338,6 +338,8 @@ func (m *mockRouter) handleAuthenticated(w http.ResponseWriter, r *http.Request)
 		existing := rows[index]
 		// Check BOTH fields: the real router requires a key and index.
 		// Checking only the key hid an index=0 bug in the DHCP client.
+// Key-and-index mismatch rejection is a mock model assumption; the
+// physical firmware's concurrency guarantees remain unverified.
 		if existing["name"] != key && existing["mac"] != key {
 			m.fail(w, "remove: key/index mismatch")
 			return

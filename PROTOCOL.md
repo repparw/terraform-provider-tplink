@@ -82,10 +82,14 @@ parameters without reporting an error, so the provider **reads back every
 create/update** and checks the resulting values. The client serializes table
 mutations within a provider process; concurrent management outside it can
 invalidate row positions, so table writes are not transactional across clients.
-The router's remove operation checks both key and index, allowing it to reject
-a stale index rather than delete an unrelated row. A regression test simulates
-this out-of-band reordering. The provider deliberately does not automatically
-retry conflicted writes: the caller should refresh and re-plan.
+The mock router models remove as a key-and-index check and rejects a stale
+index instead of deleting an unrelated row. The regression test demonstrates
+the client's behavior *under that model*, not the real firmware's atomicity.
+Although key and index are both required by the observed API, their exact
+validation semantics under concurrent external changes have **not** been
+verified against hardware. Do not treat the mock as a concurrency guarantee.
+The provider deliberately avoids automatic retries on ambiguous write failures;
+refresh and re-plan before trying again.
 
 ## Verified results and limitations
 

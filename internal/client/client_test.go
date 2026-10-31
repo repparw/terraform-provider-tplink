@@ -164,8 +164,9 @@ func TestDeleteNonFirstDHCPReservation(t *testing.T) {
 
 // TestStaleDeleteIndexFailsClosed simulates a separate router web UI session
 // shifting the row indices between a provider load and its remove request.
-// The router checks BOTH the index and identity, so it rejects the stale
+// The mock checks BOTH the index and identity, so it rejects the stale
 // request rather than deleting the unrelated row now occupying that index.
+// Actual firmware behavior under such a race has not been verified.
 func TestStaleDeleteIndexFailsClosed(t *testing.T) {
 	t.Run("DHCP reservation", func(t *testing.T) {
 		router, cl := startMock(t, "pw")
