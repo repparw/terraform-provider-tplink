@@ -3,11 +3,11 @@ package client
 import (
 	"bytes"
 	"context"
-	"errors"
-	"net/http"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
