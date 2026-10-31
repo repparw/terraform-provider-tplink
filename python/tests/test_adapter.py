@@ -73,5 +73,5 @@ def test_components_are_instantiable():
 def test_provider_schema_includes_router_config():
     instance = TPLinkProvider()
     asyncio.run(instance.setup())
-    names = instance.schema().block.attributes.keys()
+    names = instance.schema.block.attributes.keys()
     assert {"host", "username", "password", "verify_ssl"} <= set(names)
