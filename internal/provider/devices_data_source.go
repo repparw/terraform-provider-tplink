@@ -72,7 +72,7 @@ func (d *devicesDataSource) Read(ctx context.Context, _ datasource.ReadRequest, 
 		resp.Diagnostics.AddError("Provider not configured", "router client is missing")
 		return
 	}
-	devices, err := d.client.GetDevices(, ctx)
+	devices, err := d.client.GetDevices(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read devices", err.Error())
 		return

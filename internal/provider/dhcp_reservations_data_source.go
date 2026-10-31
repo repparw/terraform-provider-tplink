@@ -65,7 +65,7 @@ func (d *dhcpReservationsDataSource) Read(ctx context.Context, _ datasource.Read
 		resp.Diagnostics.AddError("Provider not configured", "router client is missing")
 		return
 	}
-	reservations, err := d.client.GetDHCPReservations(, ctx)
+	reservations, err := d.client.GetDHCPReservations(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read DHCP reservations", err.Error())
 		return
