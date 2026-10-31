@@ -212,7 +212,6 @@ func fail(err error) {
 	os.Exit(1)
 }
 
-
 // distinctKeyPairs includes every phase, not just the most recent phase's
 // samples. The keys may be stable within each phase but rotate between them.
 func distinctKeyPairs(samples []sample) map[string]bool {
