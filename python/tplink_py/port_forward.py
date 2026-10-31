@@ -1,0 +1,112 @@
+"""Experimental port-forward resource backed by tplinkrouterc6u."""
+from attrs import define
+from pyvider.resources import BaseResource, ResourceContext, register_resource
+from pyvider.schema import PvsSchema, a_bool, a_str, a_unknown, s_resource
+
+from tplink_py.common import matching_forward, provider
+
+
+@define
+class PortForwardConfig:
+    name: str
+    ip: str
+    external_port: str
+    internal_port: str
+    protocol: str
+    enabled: bool = True
+
+
+@define
+class PortForwardState:
+    id: str
+    name: str
+    ip: str
+    external_port: str
+    internal_port: str
+    protocol: str
+    enabled: bool
+
+
+def state_from_rule(rule):
+    return PortForwardState(
+        id=rule.name,
+        name=rule.name,
+        ip=rule.ipaddr,
+        external_port=rule.external_port,
+        internal_port=rule.internal_port,
+        protocol=rule.protocol,
+        enabled=rule.enabled,
+    )
+
+
+async def verified_forward(name, expected=None):
+    rules = await provider().call("get_ipv4_port_forwards")
+    match = matching_forward(rules, name)
+    if expected is not None:
+        if match is None:
+            raise RuntimeError("Port forward missing after router write")
+        if not (
+            match.ipaddr == expected.ip
+            and match.external_port == expected.external_port
+            and match.internal_port == expected.internal_port
+            and match.protocol.upper() == expected.protocol.upper()
+            and match.enabled == expected.enabled
+        ):
+            raise RuntimeError("Router returned values different from the plan")
+    return state_from_rule(match) if match else None
+
+
+@register_resource("tplink_port_forward")
+class PortForward(BaseResource):
+    config_class = PortForwardConfig
+    state_class = PortForwardState
+
+    @classmethod
+    def get_schema(cls) -> PvsSchema:
+        return s_resource({
+            "id": a_str(computed=True),
+            "name": a_str(required=True),
+            "ip": a_str(required=True),
+            "external_port": a_str(required=True),
+            "internal_port": a_str(required=True),
+            "protocol": a_str(required=True),
+            "enabled": a_bool(default=True),
+        })
+
+    async def _create(self, ctx, base_plan):
+        base_plan["id"] = a_unknown(a_str())
+        return base_plan, None
+
+    async def _create_apply(self, ctx: ResourceContext):
+        cfg = ctx.config
+        if await verified_forward(cfg.name):
+            raise RuntimeError(
+                "Existing port forward must be imported instead of created")
+        await provider().call(
+            "add_ipv4_port_forward",
+            cfg.name, cfg.external_port, cfg.internal_port,
+            cfg.ip, protocol=cfg.protocol, enable=cfg.enabled)
+        return await verified_forward(cfg.name, cfg), None
+
+    async def read(self, ctx: ResourceContext):
+        if ctx.state is None:
+            return None
+        return await verified_forward(ctx.state.name)
+
+    async def _update_apply(self, ctx: ResourceContext):
+        cfg = ctx.config
+        if not ctx.state or cfg.name != ctx.state.name:
+            raise RuntimeError(
+                "Changing a port-forward name requires replacement")
+        await provider().call(
+            "update_ipv4_port_forward", cfg.name,
+            external_port=cfg.external_port,
+            internal_port=cfg.internal_port,
+            ipaddr=cfg.ip, protocol=cfg.protocol, enable=cfg.enabled)
+        return await verified_forward(cfg.name, cfg), None
+
+    async def _delete_apply(self, ctx: ResourceContext):
+        if ctx.state and await verified_forward(ctx.state.name):
+            await provider().call("delete_ipv4_port_forward", ctx.state.name)
+            if await verified_forward(ctx.state.name):
+                raise RuntimeError("Port forward remained after deletion")

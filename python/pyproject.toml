@@ -1,0 +1,28 @@
+[project]
+name = "terraform-provider-tplink-python"
+version = "0.0.0"
+description = "Experimental Python backend for TP-Link Terraform provider"
+requires-python = ">=3.11"
+dependencies = [
+  "pyvider==0.8.1",
+  "tplinkrouterc6u==5.38.0",
+]
+
+[project.scripts]
+terraform-provider-tplink = "tplink_py:main"
+
+[project.entry-points."pyvider"]
+tplink = "tplink_py"
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["tplink_py"]
+
+[tool.pyvider]
+provider_name = "tplink"
+
+[project.optional-dependencies]
+test = ["pytest>=8"]

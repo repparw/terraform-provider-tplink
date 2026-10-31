@@ -1,0 +1,61 @@
+"""Experimental Python-only TP-Link provider.
+
+Register the Pyvider components on import. All real router calls use the
+existing tplinkrouterc6u protocol implementation, never a second Go client.
+"""
+import asyncio
+
+from pyvider.providers import BaseProvider, ProviderMetadata, register_provider
+from pyvider.schema import PvsSchema, a_bool, a_str, s_provider
+from tplinkrouterc6u import TplinkRouterSG
+
+from tplink_py import firmware, port_forward  # noqa: F401
+
+
+@register_provider("tplink")
+class TPLinkProvider(BaseProvider):
+    def __init__(self):
+        super().__init__(
+            metadata=ProviderMetadata(
+                name="tplink", version="0.0.0", protocol_version="6"))
+        self.router = None
+        self.lock = asyncio.Lock()
+
+    @classmethod
+    def get_schema(cls) -> PvsSchema:
+        return s_provider({
+            "host": a_str(required=True, description="Router HTTP URL."),
+            "username": a_str(default="admin"),
+            "password": a_str(required=True, sensitive=True),
+            "verify_ssl": a_bool(default=True),
+        })
+
+    async def configure(self, config):
+        await super().configure(config)
+        # This POC intentionally selects SG explicitly until passive-first
+        # discovery is upstream. Never call the legacy get_client() detector.
+        router = TplinkRouterSG(
+            config.host, config.password,
+            username=config.username, verify_ssl=config.verify_ssl)
+        await asyncio.to_thread(router.authorize)
+        self.router = router
+
+    async def call(self, method, *args, **kwargs):
+        """Serialize use of the single router session across parallel resources."""
+        async with self.lock:
+            if self.router is None:
+                raise RuntimeError("TP-Link provider has not been configured")
+            return await asyncio.to_thread(
+                getattr(self.router, method), *args, **kwargs)
+
+    async def close(self):
+        if self.router is not None:
+            try:
+                await self.call("logout")
+            finally:
+                self.router = None
+
+
+def main():
+    from pyvider.cli import main as pyvider_main
+    pyvider_main()
