@@ -1,11 +1,6 @@
 name: Python Terraform lifecycle acceptance
 
 on:
-  push:
-    branches: [experiment/python-pyvider]
-    paths:
-      - 'python/**'
-      - '.github/workflows/python-terraform-acceptance.yml'
   pull_request:
     paths:
       - 'python/**'
