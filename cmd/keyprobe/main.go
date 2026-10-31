@@ -57,6 +57,10 @@ func main() {
 	login := flag.Bool("login", false, "also sample across a login/logout cycle")
 	wait := flag.Duration("wait", 4*time.Minute, "delay between phases")
 	flag.Parse()
+	if *samples <= 0 || *delay < 0 || *wait < 0 {
+		fmt.Fprintln(os.Stderr, "samples must be positive and delays must be non-negative")
+		os.Exit(2)
+	}
 
 	password := os.Getenv("TPLINK_PASSWORD")
 	if *login && password == "" {
@@ -72,29 +76,26 @@ func main() {
 	}
 
 	var all []sample
-	var first sample
 	collect := func(phase string) error {
+		var phaseSamples []sample
 		for i := 0; i < *samples; i++ {
 			s, err := probeOnce(context.Background(), target)
 			if err != nil {
 				return fmt.Errorf("%s sample %d: %w", phase, i+1, err)
 			}
-			if i == 0 {
-				first = s
-			}
+			phaseSamples = append(phaseSamples, s)
 			all = append(all, s)
 			if i < *samples-1 && *delay > 0 {
 				time.Sleep(*delay)
 			}
 		}
-		return reportPhase(phase, all, first)
+		return reportPhase(phase, phaseSamples, phaseSamples[0])
 	}
 
 	fmt.Printf("# phase A: %d unauthenticated samples\n", *samples)
 	if err := collect("A"); err != nil {
 		fail(err)
 	}
-	all = nil
 
 	fmt.Printf("\n# waiting %s (phase separation)\n", *wait)
 	time.Sleep(*wait)
@@ -103,7 +104,6 @@ func main() {
 	if err := collect("B"); err != nil {
 		fail(err)
 	}
-	all = nil
 
 	if *login {
 		fmt.Printf("\n# phase C: sample -> normal login -> logout -> sample\n")
@@ -112,10 +112,9 @@ func main() {
 			fail(err)
 		}
 		all = append(all, s)
-		if err := reportPhase("C-pre-login", all, s); err != nil {
+		if err := reportPhase("C-pre-login", []sample{s}, s); err != nil {
 			fail(err)
 		}
-		all = nil
 
 		cl, err := client.New(client.Config{Host: target, Password: password, TLSSkipVerify: true})
 		if err != nil {
@@ -134,10 +133,9 @@ func main() {
 			fail(err)
 		}
 		all = append(all, s)
-		if err := reportPhase("C-post-login", all, s); err != nil {
+		if err := reportPhase("C-post-login", []sample{s}, s); err != nil {
 			fail(err)
 		}
-		all = nil
 
 		fmt.Printf("\n# waiting %s (phase separation)\n", *wait)
 		time.Sleep(*wait)
@@ -150,12 +148,9 @@ func main() {
 
 	// Cross-phase summary.
 	fmt.Printf("\n# cross-phase summary\n")
-	seen := map[string]bool{}
-	for _, s := range all {
-		seen[s.keysFP+"|"+s.authFP] = true
-	}
+	seen := distinctKeyPairs(all)
 	if len(seen) == 1 {
-		fmt.Println("RESULT: keys stable across all collected samples (single fingerprint pair)")
+		fmt.Printf("RESULT: keys stable across all %d collected samples (single fingerprint pair)\n", len(all))
 	} else {
 		fmt.Printf("RESULT: %d distinct fingerprint pairs observed\n", len(seen))
 		for fp := range seen {
@@ -215,4 +210,15 @@ func short(fp string) string {
 func fail(err error) {
 	fmt.Fprintln(os.Stderr, "ERROR:", err)
 	os.Exit(1)
+}
+
+
+// distinctKeyPairs includes every phase, not just the most recent phase's
+// samples. The keys may be stable within each phase but rotate between them.
+func distinctKeyPairs(samples []sample) map[string]bool {
+	seen := make(map[string]bool, len(samples))
+	for _, s := range samples {
+		seen[s.keysFP+"|"+s.authFP] = true
+	}
+	return seen
 }
