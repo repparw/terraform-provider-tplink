@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/repparw/terraform-provider-tplink/internal/client"
 )
@@ -40,29 +40,21 @@ func (v macValidator) ValidateString(_ context.Context, req validator.StringRequ
 	}
 }
 
-// normalizeMACPlanModifier rewrites the planned MAC address to the router's
-// canonical dash-uppercase form, so a user writing "aa:bb:cc:dd:ee:ff" does
-// not get a permanent diff (and a replacement plan) against the normalized
-// state.
-type normalizeMACPlanModifier struct{}
-
-func macNormalizer() planmodifier.String { return normalizeMACPlanModifier{} }
-
-func (m normalizeMACPlanModifier) Description(_ context.Context) string {
-	return "Normalizes the MAC address to the router's dash-uppercase form."
+// A MAC may be configured using any supported spelling. Terraform forbids
+// changing an explicitly configured value in a plan, so preserve the original
+// spelling and only replace a resource when the underlying identity changes.
+func macRequiresReplace() planmodifier.String {
+	return stringplanmodifier.RequiresReplaceIf(macReplacementDecision,
+		"Replace the reservation only when its normalized MAC address changes.",
+		"Replace the reservation only when its normalized MAC address changes.",
+	)
 }
 
-func (m normalizeMACPlanModifier) MarkdownDescription(ctx context.Context) string {
-	return m.Description(ctx)
-}
-
-func (m normalizeMACPlanModifier) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
-	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+func macReplacementDecision(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+	if req.PlanValue.IsNull() || req.PlanValue.IsUnknown() ||
+		req.StateValue.IsNull() || req.StateValue.IsUnknown() {
 		return
 	}
-	normalized := client.NormalizeMAC(req.ConfigValue.ValueString())
-	if req.PlanValue.ValueString() == normalized {
-		return
-	}
-	resp.PlanValue = types.StringValue(normalized)
+	resp.RequiresReplace = client.NormalizeMAC(req.PlanValue.ValueString()) !=
+		client.NormalizeMAC(req.StateValue.ValueString())
 }
