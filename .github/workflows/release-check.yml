@@ -18,6 +18,18 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: 1.17.1
+          terraform_wrapper: false
+      - name: Regenerate reference documentation
+        run: go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.24.0 generate --provider-name=tplink
+      - name: Check generated documentation is current
+        run: |
+          git diff --exit-code -- docs/
+          test -f docs/index.md
+          test "$(find docs/resources -maxdepth 1 -name '*.md' | wc -l)" -eq 2
+          test "$(find docs/data-sources -maxdepth 1 -name '*.md' | wc -l)" -eq 5
       - name: Check manifest
         run: |
           python3 - <<'PY'
