@@ -52,4 +52,5 @@ jobs:
           find dist -maxdepth 1 -type f -printf '%f\n' | sort
           test -n "$(find dist -maxdepth 1 -name 'terraform-provider-tplink_*_linux_amd64.zip' -print -quit)"
           test -n "$(find dist -maxdepth 1 -name 'terraform-provider-tplink_*_SHA256SUMS' -print -quit)"
-          test -n "$(find dist -maxdepth 1 -name 'terraform-provider-tplink_*_manifest.json' -print -quit)"
+          # GoReleaser only uploads release.extra_files during publishing,
+          # so the manifest is checked in the source tree above, not dist/.
