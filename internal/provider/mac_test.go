@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/repparw/terraform-provider-tplink/internal/client"
 )
 
@@ -82,5 +82,7 @@ func TestPortForwardResourceStatePreservesProtocol(t *testing.T) {
 	got := (&portForwardResource{}).stateFrom(client.PortForward{
 		Name: "web", IP: "192.168.0.10", Protocol: "UDP",
 	}, types.StringValue("udp"))
-	if got.Protocol.ValueString() != "udp" { t.Fatalf("unexpected protocol: %s", got.Protocol.ValueString()) }
+	if got.Protocol.ValueString() != "udp" {
+		t.Fatalf("unexpected protocol: %s", got.Protocol.ValueString())
+	}
 }
