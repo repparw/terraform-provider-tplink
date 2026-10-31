@@ -20,6 +20,7 @@ class TPLinkProvider(BaseProvider):
                 name="tplink", version="0.0.0", protocol_version="6"))
         self.router = None
         self.lock = asyncio.Lock()
+        self._authenticated = False
 
     # Pyvider 0.8.x composes the schema from registered capabilities.
     # RouterCapability provides the host, username and password attributes.
@@ -31,23 +32,31 @@ class TPLinkProvider(BaseProvider):
         router = TplinkRouterSG(
             config.host, config.password,
             username=config.username, verify_ssl=config.verify_ssl)
-        await asyncio.to_thread(router.authorize)
+        # Do not evict a router GUI session merely for Terraform configure.
+        # Authorize only when the first read/write actually needs the router.
         self.router = router
+        self._authenticated = False
 
     async def call(self, method, *args, **kwargs):
         """Serialize use of the single router session across parallel resources."""
         async with self.lock:
             if self.router is None:
                 raise RuntimeError("TP-Link provider has not been configured")
+            if not self._authenticated:
+                await asyncio.to_thread(self.router.authorize)
+                self._authenticated = True
             return await asyncio.to_thread(
                 getattr(self.router, method), *args, **kwargs)
 
     async def close(self):
         if self.router is not None:
             try:
-                await self.call("logout")
+                if self._authenticated:
+                    async with self.lock:
+                        await asyncio.to_thread(self.router.logout)
             finally:
                 self.router = None
+                self._authenticated = False
 
 
 def main():
