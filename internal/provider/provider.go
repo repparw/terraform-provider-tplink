@@ -44,6 +44,9 @@ type providerModel struct {
 	Password      types.String `tfsdk:"password"`
 	TLSSkipVerify types.Bool   `tfsdk:"tls_skip_verify"`
 	Timeout       types.Int64  `tfsdk:"timeout_seconds"`
+
+	PasswordKeyPin types.String `tfsdk:"password_key_pin"`
+	AuthKeyPin     types.String `tfsdk:"auth_key_pin"`
 }
 
 func (p *tplinkProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
@@ -72,6 +75,17 @@ func (p *tplinkProvider) Schema(_ context.Context, _ provider.SchemaRequest, res
 				MarkdownDescription: "Per-request timeout in seconds. Defaults to 30.",
 				Optional:            true,
 			},
+			"password_key_pin": schema.StringAttribute{
+				MarkdownDescription: "Optional SHA-256 pin (hex, of the key's DER SubjectPublicKeyInfo encoding) for the router's password-encryption RSA key. " +
+					"Enroll over a trusted connection; a mismatch fails closed before the password is encrypted. " +
+					"Use `cmd/keyprobe` to obtain the fingerprint.",
+				Optional:  true,
+				Sensitive: false,
+			},
+			"auth_key_pin": schema.StringAttribute{
+				MarkdownDescription: "Optional SHA-256 pin for the router's session key-exchange RSA key (same rules as `password_key_pin`).",
+				Optional:            true,
+			},
 		},
 	}
 }
@@ -83,10 +97,12 @@ func (p *tplinkProvider) Configure(ctx context.Context, req provider.ConfigureRe
 		return
 	}
 	cfg := client.Config{
-		Host:          data.Host.ValueString(),
-		Username:      data.Username.ValueString(),
-		Password:      data.Password.ValueString(),
-		TLSSkipVerify: data.TLSSkipVerify.ValueBool(),
+		Host:           data.Host.ValueString(),
+		Username:       data.Username.ValueString(),
+		Password:       data.Password.ValueString(),
+		TLSSkipVerify:  data.TLSSkipVerify.ValueBool(),
+		PasswordKeyPin: data.PasswordKeyPin.ValueString(),
+		AuthKeyPin:     data.AuthKeyPin.ValueString(),
 	}
 	if !data.Timeout.IsNull() {
 		cfg.Timeout = time.Duration(data.Timeout.ValueInt64()) * time.Second

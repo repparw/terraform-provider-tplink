@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -46,6 +47,7 @@ type mockRouter struct {
 
 	state      map[string][]map[string]any
 	seenBodies map[string][]string
+	server     *httptest.Server
 	// beforeWrite simulates an out-of-band web UI change after the
 	// provider loads an index but before the router processes its write.
 	beforeWrite          func(pathKey, operation string)

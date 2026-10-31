@@ -3,12 +3,17 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -17,6 +22,7 @@ func startMock(t *testing.T, password string) (*mockRouter, *Client) {
 	t.Helper()
 	router := newMockRouter(t, password)
 	server := httptest.NewServer(router.handler())
+	router.server = server
 	t.Cleanup(server.Close)
 	cfg := Config{Host: server.URL, Username: "admin", Password: password}
 	cl, err := New(cfg)
@@ -483,5 +489,112 @@ func TestPostFormCancellation(t *testing.T) {
 	_, err = cl.postForm(server.URL, "operation=read", nil, "", ctx)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected canceled HTTP request, got %v", err)
+	}
+}
+
+// fingerprintOf mocks nothing: it is the pin computation itself (SHA-256
+// over DER SubjectPublicKeyInfo), used to derive pins from the mock's keys.
+func fingerprintOf(t *testing.T, key *rsa.PrivateKey) string {
+	t.Helper()
+	der, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(der)
+	return hex.EncodeToString(sum[:])
+}
+
+// TestKeyPins verifies optional user-configured RSA public-key pins: matching
+// pins log in, substituted keys fail closed before the login POST, malformed
+// pins are rejected at configuration time, and legitimate rotation is handled
+// by updating the pin.
+func TestKeyPins(t *testing.T) {
+	router, _ := startMock(t, "pw")
+	pwdFP := fingerprintOf(t, router.pwdKey)
+	authFP := fingerprintOf(t, router.authKey)
+
+	// Matching pins: login succeeds end to end.
+	cl, err := New(Config{
+		Host: router.server.URL, Password: "pw",
+		PasswordKeyPin: pwdFP, AuthKeyPin: "sha256:" + authFP, // prefix + case tolerated
+	})
+	if err != nil {
+		t.Fatalf("New with pins: %v", err)
+	}
+	if err := cl.Authorize(); err != nil {
+		t.Fatalf("authorize with matching pins: %v", err)
+	}
+
+	// Substituted password key: fail closed before the login POST.
+	loginBodiesBefore := len(router.seenBodies["login"])
+	badPwd, err := New(Config{Host: router.server.URL, Password: "pw",
+		PasswordKeyPin: strings.Repeat("ab", 32)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = badPwd.Authorize()
+	if err == nil || !strings.Contains(err.Error(), "password key pin mismatch") {
+		t.Fatalf("expected pin mismatch error, got: %v", err)
+	}
+	if len(router.seenBodies["login"]) != loginBodiesBefore {
+		t.Fatal("pin mismatch must fail before the login POST is sent")
+	}
+
+	// Substituted auth key: fail closed after keys, before login.
+	badAuth, err := New(Config{Host: router.server.URL, Password: "pw",
+		AuthKeyPin: strings.Repeat("cd", 32)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = badAuth.Authorize()
+	if err == nil || !strings.Contains(err.Error(), "auth key pin mismatch") {
+		t.Fatalf("expected auth pin mismatch error, got: %v", err)
+	}
+	if len(router.seenBodies["login"]) != loginBodiesBefore {
+		t.Fatal("auth pin mismatch must fail before the login POST is sent")
+	}
+
+	// Malformed pin: rejected at configuration time, before any I/O.
+	if _, err := New(Config{Host: router.server.URL, Password: "pw",
+		PasswordKeyPin: "tooshort"}); err == nil {
+		t.Fatal("expected malformed pin to be rejected by New")
+	}
+}
+
+// TestKeyPinRotation verifies legitimate key rotation: a router whose keys
+// changed fails the old pin, and succeeds once the pin is updated.
+func TestKeyPinRotation(t *testing.T) {
+	router, _ := startMock(t, "pw")
+	oldPwdFP := fingerprintOf(t, router.pwdKey)
+
+	cl, err := New(Config{Host: router.server.URL, Password: "pw",
+		PasswordKeyPin: oldPwdFP})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cl.Authorize(); err != nil {
+		t.Fatalf("authorize with pre-rotation pin: %v", err)
+	}
+
+	// The router rotates its password key.
+	newKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	router.pwdKey = newKey
+	err = cl.requestPwdKeys(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "pin mismatch") {
+		t.Fatalf("expected pin mismatch after rotation, got: %v", err)
+	}
+
+	// Updating the pin to the rotated key restores login.
+	newFP := fingerprintOf(t, router.pwdKey)
+	cl2, err := New(Config{Host: router.server.URL, Password: "pw",
+		PasswordKeyPin: newFP})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cl2.Authorize(); err != nil {
+		t.Fatalf("authorize with rotated pin: %v", err)
 	}
 }
