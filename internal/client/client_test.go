@@ -193,6 +193,10 @@ func TestValidation(t *testing.T) {
 			return cl.AddPortForward(PortForward{Name: "x", IP: "10.0.0.1",
 				ExternalPort: "70000", InternalPort: "80", Protocol: "TCP", Enabled: true})
 		}},
+		{"descending range", func() error {
+			return cl.AddPortForward(PortForward{Name: "x", IP: "10.0.0.1",
+				ExternalPort: "9000-8000", InternalPort: "80", Protocol: "TCP", Enabled: true})
+		}},
 		{"bad internal port", func() error {
 			return cl.AddPortForward(PortForward{Name: "x", IP: "10.0.0.1",
 				ExternalPort: "80", InternalPort: "abc", Protocol: "TCP", Enabled: true})

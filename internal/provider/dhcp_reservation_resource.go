@@ -36,8 +36,9 @@ func (r *dhcpReservationResource) Schema(_ context.Context, _ resource.SchemaReq
 			"the MAC address replaces the row.",
 		Attributes: map[string]schema.Attribute{
 			"mac": schema.StringAttribute{
-				MarkdownDescription: "Device MAC address (colon, dash or Cisco dotted format; normalized " +
-					"to the router's dash-uppercase form). Also the resource ID.",
+				MarkdownDescription: "Device MAC address (colon, dash or Cisco dotted format). " +
+					"The configured spelling is preserved in Terraform state; the router uses normalized " +
+					"dash-uppercase identity for the computed resource ID.",
 				Required:      true,
 				PlanModifiers: []planmodifier.String{macRequiresReplace()},
 				Validators:    []validator.String{macFormatValidator()},
@@ -160,7 +161,8 @@ func (r *dhcpReservationResource) Update(ctx context.Context, req resource.Updat
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	// The MAC is force-replaced, so the state MAC equals the plan MAC here;
+	// A change of normalized MAC identity requires replacement. A change of
+	// spelling alone updates Terraform state without changing the router row.
 	// hostname/ip/enabled are updated in place.
 	if err := r.client.UpdateDHCPReservation(plan.MAC.ValueString(), toClientReservation(plan), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to update DHCP reservation", err.Error())

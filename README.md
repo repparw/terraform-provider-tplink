@@ -72,7 +72,7 @@ See [examples/](examples/) for complete configurations.
 ### `tplink_dhcp_reservation`
 
 A static DHCP address assignment, identified by the device **MAC address**
-(import ID: the MAC).
+(import ID: the MAC). The provider accepts colon, dash, or Cisco-dotted MACs and retains the configured spelling in Terraform state; the router identity and resource ID are normalized.
 
 ```hcl
 resource "tplink_dhcp_reservation" "printer" {
@@ -118,9 +118,11 @@ tofu import tplink_dhcp_reservation.pi "2C-CF-67-00-4F-47"
   design of this firmware; the password's confidentiality rests on the
   RSA key exchange. Do not expose the management interface to untrusted
   LAN segments.
-- **Write verification.** Every create/update reads the row back
-  afterwards; the router accepts unknown parameters silently, so read-back
-  is the only reliable confirmation.
+- **Write verification.** Every create/update reads the row back and checks
+  all known planned values, not just the identity.
+- **Concurrency.** Multi-request table changes are serialized within the provider
+  process. Other processes or a web-UI session can still race with an apply.
+- **Cancellation.** Terraform cancellation is propagated to router HTTP requests.
 - **Verified hardware.** The full managed-resource write cycle (create →
   update → destroy of a disposable disabled reservation and port forward,
   read-back verified after each step) and all read operations were executed

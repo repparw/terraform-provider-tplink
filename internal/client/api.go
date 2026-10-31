@@ -397,6 +397,13 @@ func validatePort(p string, allowRange bool) error {
 			return fmt.Errorf("invalid port %q", p)
 		}
 	}
+	if len(parts) == 2 {
+		start, _ := strconv.Atoi(parts[0])
+		end, _ := strconv.Atoi(parts[1])
+		if start > end {
+			return fmt.Errorf("invalid descending port range %q", p)
+		}
+	}
 	return nil
 }
 
