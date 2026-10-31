@@ -116,7 +116,7 @@ def test_no_login_on_configuration():
         inst = TPLinkProvider()
         run(inst.configure(Obj(
             host="http://router", username="admin",
-            password="secret", verify_ssl=True)))
+            password="secret", tls_skip_verify=False, timeout_seconds=30)))
     assert not inst._authenticated
 
 def test_port_protocol_case_preserved():
