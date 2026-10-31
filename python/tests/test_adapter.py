@@ -71,6 +71,12 @@ def test_components_are_instantiable():
 
 
 def test_provider_schema_includes_router_config():
+    # Normally done by Pyvider's CLI discovery; unit tests call setup()
+    # directly, so register the discovered capability explicitly.
+    from pyvider.hub import hub
+    from tplink_py.capability import RouterCapability
+
+    hub.register("capability", "tplink_router", RouterCapability)
     instance = TPLinkProvider()
     asyncio.run(instance.setup())
     names = instance.schema.block.attributes.keys()
