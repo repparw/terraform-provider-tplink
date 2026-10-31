@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -102,13 +103,18 @@ func toClientPortForward(m portForwardModel) client.PortForward {
 	}
 }
 
-func (r *portForwardResource) stateFrom(res client.PortForward) portForwardModel {
+func (r *portForwardResource) stateFrom(res client.PortForward, configuredProtocol types.String) portForwardModel {
+	// Preserve the configured case (e.g. "udp") when the router returns "UDP".
+	// Terraform requires the post-apply state to match explicit configuration.
+	if !strings.EqualFold(configuredProtocol.ValueString(), res.Protocol) {
+		configuredProtocol = types.StringValue(res.Protocol)
+	}
 	return portForwardModel{
 		Name:         types.StringValue(res.Name),
 		IP:           types.StringValue(res.IP),
 		ExternalPort: types.StringValue(res.ExternalPort),
 		InternalPort: types.StringValue(res.InternalPort),
-		Protocol:     types.StringValue(res.Protocol),
+		Protocol:     configuredProtocol,
 		Enabled:      types.BoolValue(res.Enabled),
 		ID:           types.StringValue(res.Name),
 	}
@@ -120,18 +126,23 @@ func (r *portForwardResource) Create(ctx context.Context, req resource.CreateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.AddPortForward(toClientPortForward(plan)); err != nil {
+	if err := r.client.AddPortForward(toClientPortForward(plan), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to create port forward", err.Error())
 		return
 	}
-	created, err := r.client.GetPortForwards()
+	created, err := r.client.GetPortForwards(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify port forward after write", err.Error())
 		return
 	}
 	for _, res := range created {
 		if res.Name == plan.Name.ValueString() {
-			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res))...)
+			if !portForwardMatchesPlan(res, plan) {
+				resp.Diagnostics.AddError("Port forward differs from planned values",
+					fmt.Sprintf("router returned unexpected fields for rule %q after write", plan.Name.ValueString()))
+				return
+			}
+			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res, plan.Protocol))...)
 			return
 		}
 	}
@@ -145,14 +156,14 @@ func (r *portForwardResource) Read(ctx context.Context, req resource.ReadRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	rules, err := r.client.GetPortForwards()
+	rules, err := r.client.GetPortForwards(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read port forwards", err.Error())
 		return
 	}
 	for _, res := range rules {
 		if res.Name == state.Name.ValueString() {
-			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res))...)
+			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res, state.Protocol))...)
 			return
 		}
 	}
@@ -166,18 +177,23 @@ func (r *portForwardResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 	// Name changes are force-replaced, so state name == plan name here.
-	if err := r.client.UpdatePortForward(plan.Name.ValueString(), toClientPortForward(plan)); err != nil {
+	if err := r.client.UpdatePortForward(plan.Name.ValueString(), toClientPortForward(plan), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to update port forward", err.Error())
 		return
 	}
-	updated, err := r.client.GetPortForwards()
+	updated, err := r.client.GetPortForwards(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify port forward after write", err.Error())
 		return
 	}
 	for _, res := range updated {
 		if res.Name == plan.Name.ValueString() {
-			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res))...)
+			if !portForwardMatchesPlan(res, plan) {
+				resp.Diagnostics.AddError("Port forward differs from planned values",
+					fmt.Sprintf("router returned unexpected fields for rule %q after write", plan.Name.ValueString()))
+				return
+			}
+			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res, plan.Protocol))...)
 			return
 		}
 	}
@@ -191,11 +207,11 @@ func (r *portForwardResource) Delete(ctx context.Context, req resource.DeleteReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.DeletePortForward(state.Name.ValueString()); err != nil {
+	if err := r.client.DeletePortForward(state.Name.ValueString(), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to delete port forward", err.Error())
 		return
 	}
-	remaining, err := r.client.GetPortForwards()
+	remaining, err := r.client.GetPortForwards(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify port forward deletion", err.Error())
 		return
@@ -212,4 +228,14 @@ func (r *portForwardResource) Delete(ctx context.Context, req resource.DeleteReq
 func (r *portForwardResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Import ID is the rule name.
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("name"), req.ID)...)
+}
+
+// portForwardMatchesPlan verifies the router actually stored all intended fields.
+func portForwardMatchesPlan(res client.PortForward, plan portForwardModel) bool {
+	return res.Name == plan.Name.ValueString() &&
+		res.IP == plan.IP.ValueString() &&
+		res.ExternalPort == plan.ExternalPort.ValueString() &&
+		res.InternalPort == plan.InternalPort.ValueString() &&
+		strings.EqualFold(res.Protocol, plan.Protocol.ValueString()) &&
+		(plan.Enabled.IsUnknown() || res.Enabled == plan.Enabled.ValueBool())
 }

@@ -14,5 +14,5 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go build ./... && go vet ./...
-      - run: go test ./... -count=1
-      - run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - run: go test ./... -race -count=1
+      - run: test -z "$(gofmt -l .)" || (gofmt -d . && exit 1)

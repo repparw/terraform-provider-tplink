@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -37,10 +36,11 @@ func (r *dhcpReservationResource) Schema(_ context.Context, _ resource.SchemaReq
 			"the MAC address replaces the row.",
 		Attributes: map[string]schema.Attribute{
 			"mac": schema.StringAttribute{
-				MarkdownDescription: "Device MAC address (colon, dash or Cisco dotted format; normalized " +
-					"to the router's dash-uppercase form). Also the resource ID.",
+				MarkdownDescription: "Device MAC address (colon, dash or Cisco dotted format). " +
+					"The configured spelling is preserved in Terraform state; the router uses normalized " +
+					"dash-uppercase identity for the computed resource ID.",
 				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace(), macNormalizer()},
+				PlanModifiers: []planmodifier.String{macRequiresReplace()},
 				Validators:    []validator.String{macFormatValidator()},
 			},
 			"ip": schema.StringAttribute{
@@ -95,13 +95,13 @@ func toClientReservation(m dhcpReservationModel) client.DHCPReservation {
 	}
 }
 
-func (r *dhcpReservationResource) stateFrom(res client.DHCPReservation) dhcpReservationModel {
+func (r *dhcpReservationResource) stateFrom(res client.DHCPReservation, configuredMAC types.String) dhcpReservationModel {
 	return dhcpReservationModel{
-		MAC:      types.StringValue(res.MAC),
+		MAC:      configuredMAC,
 		IP:       types.StringValue(res.IP),
 		Hostname: types.StringValue(res.Hostname),
 		Enabled:  types.BoolValue(res.Enabled),
-		ID:       types.StringValue(res.MAC),
+		ID:       types.StringValue(client.NormalizeMAC(res.MAC)),
 	}
 }
 
@@ -111,18 +111,23 @@ func (r *dhcpReservationResource) Create(ctx context.Context, req resource.Creat
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.AddDHCPReservation(toClientReservation(plan)); err != nil {
+	if err := r.client.AddDHCPReservation(toClientReservation(plan), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to create DHCP reservation", err.Error())
 		return
 	}
-	created, err := r.client.GetDHCPReservations()
+	created, err := r.client.GetDHCPReservations(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify DHCP reservation after write", err.Error())
 		return
 	}
 	for _, res := range created {
-		if res.MAC == client.NormalizeMAC(plan.MAC.ValueString()) {
-			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res))...)
+		if client.NormalizeMAC(res.MAC) == client.NormalizeMAC(plan.MAC.ValueString()) {
+			if !reservationMatchesPlan(res, plan) {
+				resp.Diagnostics.AddError("DHCP reservation differs from planned values",
+					fmt.Sprintf("router returned unexpected fields for reservation %q after write", plan.MAC.ValueString()))
+				return
+			}
+			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res, plan.MAC))...)
 			return
 		}
 	}
@@ -136,14 +141,14 @@ func (r *dhcpReservationResource) Read(ctx context.Context, req resource.ReadReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	reservations, err := r.client.GetDHCPReservations()
+	reservations, err := r.client.GetDHCPReservations(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read DHCP reservations", err.Error())
 		return
 	}
 	for _, res := range reservations {
-		if res.MAC == client.NormalizeMAC(state.MAC.ValueString()) {
-			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res))...)
+		if client.NormalizeMAC(res.MAC) == client.NormalizeMAC(state.MAC.ValueString()) {
+			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res, state.MAC))...)
 			return
 		}
 	}
@@ -156,20 +161,26 @@ func (r *dhcpReservationResource) Update(ctx context.Context, req resource.Updat
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	// The MAC is force-replaced, so the state MAC equals the plan MAC here;
+	// A change of normalized MAC identity requires replacement. A change of
+	// spelling alone updates Terraform state without changing the router row.
 	// hostname/ip/enabled are updated in place.
-	if err := r.client.UpdateDHCPReservation(plan.MAC.ValueString(), toClientReservation(plan)); err != nil {
+	if err := r.client.UpdateDHCPReservation(plan.MAC.ValueString(), toClientReservation(plan), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to update DHCP reservation", err.Error())
 		return
 	}
-	updated, err := r.client.GetDHCPReservations()
+	updated, err := r.client.GetDHCPReservations(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify DHCP reservation after write", err.Error())
 		return
 	}
 	for _, res := range updated {
-		if res.MAC == client.NormalizeMAC(plan.MAC.ValueString()) {
-			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res))...)
+		if client.NormalizeMAC(res.MAC) == client.NormalizeMAC(plan.MAC.ValueString()) {
+			if !reservationMatchesPlan(res, plan) {
+				resp.Diagnostics.AddError("DHCP reservation differs from planned values",
+					fmt.Sprintf("router returned unexpected fields for reservation %q after write", plan.MAC.ValueString()))
+				return
+			}
+			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res, plan.MAC))...)
 			return
 		}
 	}
@@ -183,17 +194,17 @@ func (r *dhcpReservationResource) Delete(ctx context.Context, req resource.Delet
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.DeleteDHCPReservation(state.MAC.ValueString()); err != nil {
+	if err := r.client.DeleteDHCPReservation(state.MAC.ValueString(), ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to delete DHCP reservation", err.Error())
 		return
 	}
-	remaining, err := r.client.GetDHCPReservations()
+	remaining, err := r.client.GetDHCPReservations(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify DHCP reservation deletion", err.Error())
 		return
 	}
 	for _, reservation := range remaining {
-		if reservation.MAC == client.NormalizeMAC(state.MAC.ValueString()) {
+		if client.NormalizeMAC(reservation.MAC) == client.NormalizeMAC(state.MAC.ValueString()) {
 			resp.Diagnostics.AddError("DHCP reservation still present after delete",
 				fmt.Sprintf("reservation %q remains configured on the router", state.MAC.ValueString()))
 			return
@@ -204,4 +215,13 @@ func (r *dhcpReservationResource) Delete(ctx context.Context, req resource.Delet
 func (r *dhcpReservationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Import ID is the MAC address.
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("mac"), client.NormalizeMAC(req.ID))...)
+}
+
+// reservationMatchesPlan checks the entire known plan, not just the identity.
+// Optional+Computed hostname may legitimately be unknown before creation.
+func reservationMatchesPlan(res client.DHCPReservation, plan dhcpReservationModel) bool {
+	return client.NormalizeMAC(res.MAC) == client.NormalizeMAC(plan.MAC.ValueString()) &&
+		res.IP == plan.IP.ValueString() &&
+		(plan.Hostname.IsUnknown() || plan.Hostname.IsNull() || res.Hostname == plan.Hostname.ValueString()) &&
+		(plan.Enabled.IsUnknown() || res.Enabled == plan.Enabled.ValueBool())
 }

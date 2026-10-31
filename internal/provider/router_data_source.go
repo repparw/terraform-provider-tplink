@@ -81,7 +81,7 @@ func (d *routerDataSource) Read(ctx context.Context, _ datasource.ReadRequest, r
 		resp.Diagnostics.AddError("Provider not configured", "router client is missing")
 		return
 	}
-	st, err := d.client.GetStatus()
+	st, err := d.client.GetStatus(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read router status", err.Error())
 		return

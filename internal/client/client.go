@@ -22,6 +22,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
@@ -37,7 +38,6 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	mathrand "math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -71,6 +71,7 @@ type Client struct {
 	http     *http.Client
 
 	mu          sync.Mutex
+	mutationMu  sync.Mutex // covers multi-request table operations
 	aesKey      string
 	aesIV       string
 	seq         int
@@ -129,20 +130,26 @@ func New(cfg Config) (*Client, error) {
 	}, nil
 }
 
-func randomDigits(n int) string {
+func randomDigits(n int) (string, error) {
 	b := make([]byte, n)
 	for i := range b {
-		b[i] = byte('0' + mathrand.Intn(10)) //nolint:gosec // matches the router JS: key material is digits
+		// Preserve the router protocol's decimal-digit key format, but draw
+		// each digit from a cryptographically secure, unbiased source.
+		digit, err := rand.Int(rand.Reader, big.NewInt(10))
+		if err != nil {
+			return "", fmt.Errorf("tplink: generate session key: %w", err)
+		}
+		b[i] = '0' + byte(digit.Int64())
 	}
-	return string(b)
+	return string(b), nil
 }
 
 func (c *Client) formURL(stok, path string) string {
 	return fmt.Sprintf("%s/cgi-bin/luci/;stok=%s/%s", c.host, stok, path)
 }
 
-func (c *Client) postForm(rawURL, body string, headers map[string]string, sysauth string) (*http.Response, error) {
-	req, err := http.NewRequest(http.MethodPost, rawURL, strings.NewReader(body))
+func (c *Client) postForm(rawURL, body string, headers map[string]string, sysauth string, ctx context.Context) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rawURL, strings.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -162,19 +169,26 @@ func (c *Client) postForm(rawURL, body string, headers map[string]string, sysaut
 func (c *Client) Authorize() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.authorizeLocked()
+	return c.authorizeLocked(context.Background())
 }
 
-func (c *Client) authorizeLocked() error {
-	if err := c.requestPwdKeys(); err != nil {
+func (c *Client) authorizeLocked(ctx context.Context) error {
+	if err := c.requestPwdKeys(ctx); err != nil {
 		return err
 	}
-	if err := c.requestAuthKeys(); err != nil {
+	if err := c.requestAuthKeys(ctx); err != nil {
 		return err
 	}
 
-	c.aesKey = randomDigits(aesKeyLen)
-	c.aesIV = randomDigits(aesKeyLen)
+	var err error
+	c.aesKey, err = randomDigits(aesKeyLen)
+	if err != nil {
+		return err
+	}
+	c.aesIV, err = randomDigits(aesKeyLen)
+	if err != nil {
+		return err
+	}
 
 	encryptedPwd, err := rsaV15Encrypt([]byte(c.password), c.pwdNN, c.pwdEE)
 	if err != nil {
@@ -193,7 +207,7 @@ func (c *Client) authorizeLocked() error {
 	// The router's form parser requires the sign parameter first; a form
 	// encoder that sorts keys (data before sign) is rejected with HTTP 403.
 	form := "sign=" + sign + "&data=" + url.QueryEscape(encryptedData)
-	resp, err := c.postForm(c.formURL("", "login?form=login"), form, nil, "")
+	resp, err := c.postForm(c.formURL("", "login?form=login"), form, nil, "", ctx)
 	if err != nil {
 		return fmt.Errorf("tplink: login request: %w", err)
 	}
@@ -243,9 +257,9 @@ func (c *Client) authorizeLocked() error {
 	return nil
 }
 
-func (c *Client) requestPwdKeys() error {
+func (c *Client) requestPwdKeys(ctx context.Context) error {
 	resp, err := c.postForm(c.formURL("", "login?form=keys"),
-		"operation=read", nil, "")
+		"operation=read", nil, "", ctx)
 	if err != nil {
 		return fmt.Errorf("tplink: fetch password keys: %w", err)
 	}
@@ -266,9 +280,9 @@ func (c *Client) requestPwdKeys() error {
 	return nil
 }
 
-func (c *Client) requestAuthKeys() error {
+func (c *Client) requestAuthKeys(ctx context.Context) error {
 	resp, err := c.postForm(c.formURL("", "login?form=auth"),
-		"operation=read", nil, "")
+		"operation=read", nil, "", ctx)
 	if err != nil {
 		return fmt.Errorf("tplink: fetch auth keys: %w", err)
 	}
@@ -294,24 +308,34 @@ func (c *Client) requestAuthKeys() error {
 // do performs one authenticated, encrypted request and returns the response
 // payload (the "data" member, or the whole decrypted body when absent).
 // On a session timeout it re-authorizes once and retries.
-func (c *Client) do(path string, form url.Values) (json.RawMessage, error) {
+func requestContext(ctxs []context.Context) context.Context {
+	if len(ctxs) > 0 && ctxs[0] != nil {
+		return ctxs[0]
+	}
+	return context.Background()
+}
+
+// Terraform can cancel an in-flight HTTP operation; legacy command-line
+// callers may omit a context and use context.Background().
+func (c *Client) do(path string, form url.Values, ctxs ...context.Context) (json.RawMessage, error) {
+	ctx := requestContext(ctxs)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.authorized {
-		if err := c.authorizeLocked(); err != nil {
+		if err := c.authorizeLocked(ctx); err != nil {
 			return nil, err
 		}
 	}
-	payload, err := c.doLocked(path, form)
+	payload, err := c.doLocked(ctx, path, form)
 	if err == nil {
 		return payload, nil
 	}
 	var authErr *AuthExpiredError
 	if errors.As(err, &authErr) {
-		if err := c.authorizeLocked(); err != nil {
+		if err := c.authorizeLocked(ctx); err != nil {
 			return nil, err
 		}
-		return c.doLocked(path, form)
+		return c.doLocked(ctx, path, form)
 	}
 	return nil, err
 }
@@ -324,7 +348,7 @@ func (e *AuthExpiredError) Error() string {
 	return "tplink: session expired (" + e.Code + ")"
 }
 
-func (c *Client) doLocked(path string, form url.Values) (json.RawMessage, error) {
+func (c *Client) doLocked(ctx context.Context, path string, form url.Values) (json.RawMessage, error) {
 	plain := []byte(form.Encode())
 	encrypted, err := aesEncrypt(plain, c.aesKey, c.aesIV)
 	if err != nil {
@@ -335,7 +359,7 @@ func (c *Client) doLocked(path string, form url.Values) (json.RawMessage, error)
 		return nil, err
 	}
 	body := "sign=" + sign + "&data=" + url.QueryEscape(encrypted)
-	resp, err := c.postForm(c.formURL(c.stok, path), body, nil, c.sysauth)
+	resp, err := c.postForm(c.formURL(c.stok, path), body, nil, c.sysauth, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("tplink: request %s: %w", path, err)
 	}
@@ -483,7 +507,7 @@ func (c *Client) Logout() error {
 	}
 	c.authorized = false
 	// Best-effort: ignore errors, the session dies with the process anyway.
-	_, _ = c.doLocked("admin/system?form=logout", url.Values{"operation": {"write"}})
+	_, _ = c.doLocked(context.Background(), "admin/system?form=logout", url.Values{"operation": {"write"}})
 	c.stok, c.sysauth = "", ""
 	return nil
 }

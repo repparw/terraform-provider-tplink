@@ -79,9 +79,9 @@ Reservations are identified by **MAC address** and port forwards by
 **rule name**. Operations using a table index require loading the current
 table before choosing an index. Router firmware may accept unknown write
 parameters without reporting an error, so the provider **reads back every
-create/update** and checks the resulting values. Concurrent management
-outside the provider can invalidate row positions; do not assume table writes
-are transactional.
+create/update** and checks the resulting values. The client serializes table
+mutations within a provider process; concurrent management outside it can
+invalidate row positions, so table writes are not transactional across clients.
 
 ## Verified results and limitations
 

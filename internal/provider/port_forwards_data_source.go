@@ -67,7 +67,7 @@ func (d *portForwardsDataSource) Read(ctx context.Context, _ datasource.ReadRequ
 		resp.Diagnostics.AddError("Provider not configured", "router client is missing")
 		return
 	}
-	rules, err := d.client.GetPortForwards()
+	rules, err := d.client.GetPortForwards(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read port forwards", err.Error())
 		return
