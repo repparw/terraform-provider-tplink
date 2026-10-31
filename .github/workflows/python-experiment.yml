@@ -74,8 +74,17 @@ jobs:
           }
           HCL
           cd "$RUNNER_TEMP/schema"
-          terraform init -backend=false -plugin-dir="$HOME/.terraform.d/plugins"
-          terraform providers schema -json > schema.json
+          # dev_overrides tests the actual provider protocol directly. This
+          # experiment is not a registered provider and has no lockfile yet.
+          cat > "$RUNNER_TEMP/provider.tfrc" <<EOF
+          provider_installation {
+            dev_overrides {
+              "local/providers/tplink" = "$HOME/.terraform.d/plugins/local/providers/tplink/0.0.0/linux_amd64"
+            }
+            direct {}
+          }
+          EOF
+          TF_CLI_CONFIG_FILE="$RUNNER_TEMP/provider.tfrc" terraform providers schema -json > schema.json
           python - <<'PY'
           import json
           data = json.load(open("schema.json"))
