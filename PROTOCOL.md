@@ -82,6 +82,10 @@ parameters without reporting an error, so the provider **reads back every
 create/update** and checks the resulting values. The client serializes table
 mutations within a provider process; concurrent management outside it can
 invalidate row positions, so table writes are not transactional across clients.
+The router's remove operation checks both key and index, allowing it to reject
+a stale index rather than delete an unrelated row. A regression test simulates
+this out-of-band reordering. The provider deliberately does not automatically
+retry conflicted writes: the caller should refresh and re-plan.
 
 ## Verified results and limitations
 

@@ -162,6 +162,84 @@ func TestDeleteNonFirstDHCPReservation(t *testing.T) {
 	}
 }
 
+
+// TestStaleDeleteIndexFailsClosed simulates a separate router web UI session
+// shifting the row indices between a provider load and its remove request.
+// The router checks BOTH the index and identity, so it rejects the stale
+// request rather than deleting the unrelated row now occupying that index.
+func TestStaleDeleteIndexFailsClosed(t *testing.T) {
+	t.Run("DHCP reservation", func(t *testing.T) {
+		router, cl := startMock(t, "pw")
+		for i := 1; i <= 2; i++ {
+			err := cl.AddDHCPReservation(DHCPReservation{
+				MAC: fmt.Sprintf("00:11:22:33:44:%02X", i),
+				IP: fmt.Sprintf("192.168.0.%d", 100+i), Enabled: true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		router.beforeWrite = func(path, operation string) {
+			if path != "admin/dhcps?form=reservation" || operation != "remove" {
+				t.Errorf("unexpected write: %q %q", path, operation)
+				return
+			}
+			rows := router.state[path]
+			router.state[path] = append([]map[string]any{{
+				"mac": "00-11-22-33-44-00", "ip": "192.168.0.100",
+				"hostname": "external", "enable": "on",
+			}}, rows...)
+		}
+		if err := cl.DeleteDHCPReservation("00:11:22:33:44:02"); err == nil {
+			t.Fatal("expected a conflict when the router table index changes")
+		}
+		remaining, err := cl.GetDHCPReservations()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(remaining) != 3 || remaining[0].MAC != "00-11-22-33-44-00" ||
+			remaining[1].MAC != "00-11-22-33-44-01" || remaining[2].MAC != "00-11-22-33-44-02" {
+			t.Fatalf("stale delete modified a row: %+v", remaining)
+		}
+	})
+	t.Run("port forward", func(t *testing.T) {
+		router, cl := startMock(t, "pw")
+		for i := 1; i <= 2; i++ {
+			err := cl.AddPortForward(PortForward{
+				Name: fmt.Sprintf("rule-%d", i), IP: "192.168.0.10",
+				ExternalPort: fmt.Sprintf("900%d", i),
+				InternalPort: fmt.Sprintf("900%d", i), Protocol: "TCP", Enabled: true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		router.beforeWrite = func(path, operation string) {
+			if path != "admin/nat?form=vs" || operation != "remove" {
+				t.Errorf("unexpected write: %q %q", path, operation)
+				return
+			}
+			rows := router.state[path]
+			router.state[path] = append([]map[string]any{{
+				"name": "external", "ipaddr": "192.168.0.10",
+				"external_port": "9090", "internal_port": "9090",
+				"protocol": "TCP", "enable": "on",
+			}}, rows...)
+		}
+		if err := cl.DeletePortForward("rule-2"); err == nil {
+			t.Fatal("expected a conflict when the router table index changes")
+		}
+		remaining, err := cl.GetPortForwards()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(remaining) != 3 || remaining[0].Name != "external" ||
+			remaining[1].Name != "rule-1" || remaining[2].Name != "rule-2" {
+			t.Fatalf("stale delete modified a rule: %+v", remaining)
+		}
+	})
+}
+
 // TestAuthorizeWrongPassword verifies a wrong password surfaces as a login
 // failure and never retries (the router lockout rule).
 func TestAuthorizeWrongPassword(t *testing.T) {

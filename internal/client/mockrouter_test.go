@@ -46,6 +46,9 @@ type mockRouter struct {
 
 	state      map[string][]map[string]any
 	seenBodies map[string][]string
+	// beforeWrite simulates an out-of-band web UI change after the
+	// provider loads an index but before the router processes its write.
+	beforeWrite func(pathKey, operation string)
 }
 
 func newMockRouter(t *testing.T, password string) *mockRouter {
@@ -277,6 +280,11 @@ func (m *mockRouter) handleAuthenticated(w http.ResponseWriter, r *http.Request)
 	m.record(pathKey, string(body))
 
 	operation := form.Get("operation")
+	if m.beforeWrite != nil && (operation == "update" || operation == "remove") {
+		hook := m.beforeWrite
+		m.beforeWrite = nil
+		hook(pathKey, operation)
+	}
 	switch operation {
 	case "read":
 		m.replyEncrypted(w, []byte(`{"success":true,"data":{"data":`+mockRows(m.state[pathKey])+`}}`))
