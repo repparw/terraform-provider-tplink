@@ -3,7 +3,11 @@ name: Python provider frozen executable
 on:
   pull_request:
     paths:
-      - 'python/**'
+      - 'python/tplink_py/**'
+      - 'python/pyproject.toml'
+      - 'python/build_frozen.py'
+      - 'python/validate_frozen.py'
+      - 'python/launcher.py'
       - '.github/workflows/python-package.yml'
 
 permissions:
@@ -44,5 +48,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: tplink-python-${{ matrix.platform }}-experiment
-          path: dist/python/terraform-provider-tplink*
+          path: |
+            dist/python/terraform-provider-tplink*
+            python/LICENSE
+            python/NOTICE.md
           retention-days: 7

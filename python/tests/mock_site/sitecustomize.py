@@ -35,6 +35,24 @@ class FakeRouter:
     def logout(self):
         return None
 
+    def get_status(self):
+        from tplinkrouterc6u.common.package_enum import Connection
+        return SimpleNamespace(
+            conn_type="dhcp", wan_ipv4_addr="192.0.2.10",
+            wan_ipv4_gateway="192.0.2.1", wan_macaddr="AA-BB-CC-DD-EE-00",
+            wan_ipv4_uptime=120, lan_ipv4_addr="192.168.0.1",
+            lan_macaddr="AA-BB-CC-DD-EE-01", cpu_usage=0.12,
+            mem_usage=0.23, clients_total=1, wired_total=1,
+            wifi_clients_total=0, guest_clients_total=0,
+            iot_clients_total=0,
+            devices=[SimpleNamespace(
+                hostname="printer", ipaddr="192.168.0.20",
+                macaddr="AA-BB-CC-DD-EE-FF", type=Connection.WIRED)],
+        )
+
+    def get_ipv4_status(self):
+        return SimpleNamespace(lan_ipv4_dhcp_enable=True)
+
     def get_firmware(self):
         return SimpleNamespace(model="CI-mock", hardware_version="1.0",
                                firmware_version="mock")

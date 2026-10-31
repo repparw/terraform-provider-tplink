@@ -70,6 +70,10 @@ jobs:
             enabled = true
           }
           data "tplink_firmware" "current" {}
+          data "tplink_router" "status" {}
+          data "tplink_devices" "connected" {}
+          data "tplink_dhcp_reservations" "all" {}
+          data "tplink_port_forwards" "all" {}
           HCL
           terraform plan -out=initial.plan
           terraform apply -auto-approve initial.plan

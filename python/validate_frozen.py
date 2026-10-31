@@ -21,8 +21,10 @@ def main():
         (directory / "main.tf").write_text(
             'terraform {\n'
             '  required_providers {\n'
-            '    tplink = { source = "local/providers/tplink" '
-            'version = "0.0.0" }\n'
+            '    tplink = {\n'
+            '      source = "local/providers/tplink"\n'
+            '      version = "0.0.0"\n'
+            '    }\n'
             '  }\n'
             '}\n'
         )

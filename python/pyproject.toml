@@ -2,6 +2,7 @@
 name = "terraform-provider-tplink-python"
 version = "0.0.0"
 description = "Experimental Python backend for TP-Link Terraform provider"
+license = "GPL-3.0-or-later"
 requires-python = ">=3.11"
 dependencies = [
   "pyvider==0.8.1",
