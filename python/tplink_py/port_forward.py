@@ -73,6 +73,14 @@ class PortForward(BaseResource):
             "enabled": a_bool(default=True),
         })
 
+    async def _validate_config(self, config: PortForwardConfig) -> list[str]:
+        errors = []
+        if not config.name.strip():
+            errors.append("port forward name is required")
+        if config.protocol.upper() not in ("TCP", "UDP", "ALL"):
+            errors.append("protocol must be TCP, UDP or ALL")
+        return errors
+
     async def _create(self, ctx, base_plan):
         base_plan["id"] = a_unknown(a_str())
         return base_plan, None
