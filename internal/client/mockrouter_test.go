@@ -48,7 +48,7 @@ type mockRouter struct {
 	seenBodies map[string][]string
 	// beforeWrite simulates an out-of-band web UI change after the
 	// provider loads an index but before the router processes its write.
-	beforeWrite         func(pathKey, operation string)
+	beforeWrite          func(pathKey, operation string)
 	allowedFailurePrefix string
 }
 

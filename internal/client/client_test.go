@@ -162,7 +162,6 @@ func TestDeleteNonFirstDHCPReservation(t *testing.T) {
 	}
 }
 
-
 // TestStaleDeleteIndexFailsClosed simulates a separate router web UI session
 // shifting the row indices between a provider load and its remove request.
 // The router checks BOTH the index and identity, so it rejects the stale
@@ -173,7 +172,7 @@ func TestStaleDeleteIndexFailsClosed(t *testing.T) {
 		for i := 1; i <= 2; i++ {
 			err := cl.AddDHCPReservation(DHCPReservation{
 				MAC: fmt.Sprintf("00:11:22:33:44:%02X", i),
-				IP: fmt.Sprintf("192.168.0.%d", 100+i), Enabled: true,
+				IP:  fmt.Sprintf("192.168.0.%d", 100+i), Enabled: true,
 			})
 			if err != nil {
 				t.Fatal(err)
