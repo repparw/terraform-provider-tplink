@@ -114,7 +114,7 @@ func (r *dhcpReservationResource) Create(ctx context.Context, req resource.Creat
 		resp.Diagnostics.AddError("Unable to create DHCP reservation", err.Error())
 		return
 	}
-	created, err := r.client.GetDHCPReservations(, ctx)
+	created, err := r.client.GetDHCPReservations(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify DHCP reservation after write", err.Error())
 		return
@@ -140,7 +140,7 @@ func (r *dhcpReservationResource) Read(ctx context.Context, req resource.ReadReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	reservations, err := r.client.GetDHCPReservations(, ctx)
+	reservations, err := r.client.GetDHCPReservations(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read DHCP reservations", err.Error())
 		return
@@ -166,7 +166,7 @@ func (r *dhcpReservationResource) Update(ctx context.Context, req resource.Updat
 		resp.Diagnostics.AddError("Unable to update DHCP reservation", err.Error())
 		return
 	}
-	updated, err := r.client.GetDHCPReservations(, ctx)
+	updated, err := r.client.GetDHCPReservations(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify DHCP reservation after write", err.Error())
 		return
@@ -196,7 +196,7 @@ func (r *dhcpReservationResource) Delete(ctx context.Context, req resource.Delet
 		resp.Diagnostics.AddError("Unable to delete DHCP reservation", err.Error())
 		return
 	}
-	remaining, err := r.client.GetDHCPReservations(, ctx)
+	remaining, err := r.client.GetDHCPReservations(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify DHCP reservation deletion", err.Error())
 		return

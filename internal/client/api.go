@@ -269,7 +269,7 @@ func (c *Client) AddDHCPReservation(r DHCPReservation, ctxs ...context.Context) 
 	defer c.mutationMu.Unlock()
 	// Verify uniqueness before creating: blindly inserting can leave an
 	// unmanageable ambiguous duplicate if the router accepts repeated keys.
-	existing, err := c.GetDHCPReservations(, ctxs...)
+	existing, err := c.GetDHCPReservations(ctxs...)
 	if err != nil {
 		return err
 	}
@@ -485,7 +485,7 @@ func (c *Client) AddPortForward(r PortForward, ctxs ...context.Context) error {
 		"protocol":      protocol,
 		"enable":        onOff(r.Enabled),
 	}
-	existing, err := c.GetPortForwards(, ctxs...)
+	existing, err := c.GetPortForwards(ctxs...)
 	if err != nil {
 		return err
 	}

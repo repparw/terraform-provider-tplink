@@ -130,7 +130,7 @@ func (r *portForwardResource) Create(ctx context.Context, req resource.CreateReq
 		resp.Diagnostics.AddError("Unable to create port forward", err.Error())
 		return
 	}
-	created, err := r.client.GetPortForwards(, ctx)
+	created, err := r.client.GetPortForwards(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify port forward after write", err.Error())
 		return
@@ -156,7 +156,7 @@ func (r *portForwardResource) Read(ctx context.Context, req resource.ReadRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	rules, err := r.client.GetPortForwards(, ctx)
+	rules, err := r.client.GetPortForwards(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read port forwards", err.Error())
 		return
@@ -181,7 +181,7 @@ func (r *portForwardResource) Update(ctx context.Context, req resource.UpdateReq
 		resp.Diagnostics.AddError("Unable to update port forward", err.Error())
 		return
 	}
-	updated, err := r.client.GetPortForwards(, ctx)
+	updated, err := r.client.GetPortForwards(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify port forward after write", err.Error())
 		return
@@ -211,7 +211,7 @@ func (r *portForwardResource) Delete(ctx context.Context, req resource.DeleteReq
 		resp.Diagnostics.AddError("Unable to delete port forward", err.Error())
 		return
 	}
-	remaining, err := r.client.GetPortForwards(, ctx)
+	remaining, err := r.client.GetPortForwards(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to verify port forward deletion", err.Error())
 		return
