@@ -48,7 +48,8 @@ type mockRouter struct {
 	seenBodies map[string][]string
 	// beforeWrite simulates an out-of-band web UI change after the
 	// provider loads an index but before the router processes its write.
-	beforeWrite func(pathKey, operation string)
+	beforeWrite         func(pathKey, operation string)
+	allowedFailurePrefix string
 }
 
 func newMockRouter(t *testing.T, password string) *mockRouter {
@@ -100,6 +101,11 @@ func (m *mockRouter) replyEncrypted(w http.ResponseWriter, payload []byte) {
 }
 
 func (m *mockRouter) fail(w http.ResponseWriter, msg string) {
+	if m.allowedFailurePrefix != "" && strings.HasPrefix(msg, m.allowedFailurePrefix) {
+		m.allowedFailurePrefix = ""
+		m.reject(w)
+		return
+	}
 	m.t.Errorf("mock router: %s", msg)
 	m.reject(w)
 }

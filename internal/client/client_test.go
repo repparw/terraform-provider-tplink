@@ -179,6 +179,7 @@ func TestStaleDeleteIndexFailsClosed(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+		router.allowedFailurePrefix = "remove: key/index mismatch"
 		router.beforeWrite = func(path, operation string) {
 			if path != "admin/dhcps?form=reservation" || operation != "remove" {
 				t.Errorf("unexpected write: %q %q", path, operation)
@@ -214,6 +215,7 @@ func TestStaleDeleteIndexFailsClosed(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+		router.allowedFailurePrefix = "remove: key/index mismatch"
 		router.beforeWrite = func(path, operation string) {
 			if path != "admin/nat?form=vs" || operation != "remove" {
 				t.Errorf("unexpected write: %q %q", path, operation)
