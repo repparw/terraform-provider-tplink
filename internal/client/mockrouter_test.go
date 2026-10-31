@@ -46,6 +46,10 @@ type mockRouter struct {
 
 	state      map[string][]map[string]any
 	seenBodies map[string][]string
+	// beforeWrite simulates an out-of-band web UI change after the
+	// provider loads an index but before the router processes its write.
+	beforeWrite          func(pathKey, operation string)
+	allowedFailurePrefix string
 }
 
 func newMockRouter(t *testing.T, password string) *mockRouter {
@@ -97,6 +101,11 @@ func (m *mockRouter) replyEncrypted(w http.ResponseWriter, payload []byte) {
 }
 
 func (m *mockRouter) fail(w http.ResponseWriter, msg string) {
+	if m.allowedFailurePrefix != "" && strings.HasPrefix(msg, m.allowedFailurePrefix) {
+		m.allowedFailurePrefix = ""
+		m.reject(w)
+		return
+	}
 	m.t.Errorf("mock router: %s", msg)
 	m.reject(w)
 }
@@ -277,6 +286,11 @@ func (m *mockRouter) handleAuthenticated(w http.ResponseWriter, r *http.Request)
 	m.record(pathKey, string(body))
 
 	operation := form.Get("operation")
+	if m.beforeWrite != nil && (operation == "update" || operation == "remove") {
+		hook := m.beforeWrite
+		m.beforeWrite = nil
+		hook(pathKey, operation)
+	}
 	switch operation {
 	case "read":
 		m.replyEncrypted(w, []byte(`{"success":true,"data":{"data":`+mockRows(m.state[pathKey])+`}}`))
@@ -324,6 +338,8 @@ func (m *mockRouter) handleAuthenticated(w http.ResponseWriter, r *http.Request)
 		existing := rows[index]
 		// Check BOTH fields: the real router requires a key and index.
 		// Checking only the key hid an index=0 bug in the DHCP client.
+		// Key-and-index mismatch rejection is a mock model assumption; the
+		// physical firmware's concurrency guarantees remain unverified.
 		if existing["name"] != key && existing["mac"] != key {
 			m.fail(w, "remove: key/index mismatch")
 			return
