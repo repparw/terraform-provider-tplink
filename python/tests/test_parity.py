@@ -105,7 +105,7 @@ def test_nested_data_sources_have_matching_keys():
 
 
 def test_replacement_flags_set():
-    assert DHCPReservation.get_schema().block.attributes["mac"].requires_replace
+    assert not DHCPReservation.get_schema().block.attributes["mac"].requires_replace
     assert PortForward.get_schema().block.attributes["name"].requires_replace
 
 
@@ -135,3 +135,33 @@ def test_port_enabled_default_and_go_provider_config_fields():
     config = RouterCapability.get_schema_contribution()
     assert "tls_skip_verify" in config
     assert "timeout_seconds" in config
+
+
+def test_mac_replacement_only_when_normalized_identity_changes():
+    resource = DHCPReservation()
+    required = []
+    old = Obj(mac="AA-BB-CC-DD-EE-FF")
+    for mac, should_replace in [
+        ("aa:bb:cc:dd:ee:ff", False),
+        ("AA-BB-CC-DD-EE-00", True),
+    ]:
+        required.clear()
+        ctx = Obj(state=old, config=Obj(mac=mac),
+                  require_replace=required.append)
+        run(resource._update(ctx, {}))
+        assert bool(required) is should_replace
+        if should_replace:
+            assert required == ["mac"]
+
+
+def test_mac_spelling_only_update_does_not_write_router():
+    resource = DHCPReservation()
+    old = Obj(mac="AA-BB-CC-DD-EE-FF", ip="192.168.0.20",
+              hostname="printer", enabled=True)
+    cfg = DHCPConfig("aa:bb:cc:dd:ee:ff", old.ip, old.hostname, old.enabled)
+    fake = Obj(call=AsyncMock())
+    with patch("tplink_py.dhcp_reservation.provider", return_value=fake):
+        new, private = run(resource._update_apply(Obj(config=cfg, state=old)))
+    assert new.mac == cfg.mac and new.id == normalized_mac(cfg.mac)
+    assert private is None
+    fake.call.assert_not_called()

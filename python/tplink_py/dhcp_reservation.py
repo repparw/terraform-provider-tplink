@@ -70,7 +70,7 @@ class DHCPReservation(BaseResource):
     def get_schema(cls) -> PvsSchema:
         return s_resource({
             "id": a_str(computed=True),
-            "mac": a_str(required=True, requires_replace=True),
+            "mac": a_str(required=True),
             "ip": a_str(required=True),
             "hostname": a_str(optional=True, computed=True),
             "enabled": a_bool(optional=True, computed=True, default=True),
@@ -87,6 +87,15 @@ class DHCPReservation(BaseResource):
         except (ValueError, TypeError):
             errors.append("Invalid IPv4 address")
         return errors
+
+    async def _update(self, ctx, base_plan):
+        # Changing the spelling of the same MAC must not delete a reservation.
+        # Require replacement only if the normalized identity changes.
+        if (ctx.state is not None and ctx.config is not None
+                and normalized_mac(ctx.config.mac)
+                != normalized_mac(ctx.state.mac)):
+            ctx.require_replace("mac")
+        return base_plan, None
 
     async def _create(self, ctx, base_plan):
         base_plan["id"] = a_unknown(a_str())
@@ -113,6 +122,13 @@ class DHCPReservation(BaseResource):
             raise RuntimeError("Missing previous DHCP reservation state")
         if normalized_mac(cfg.mac) != normalized_mac(ctx.state.mac):
             raise RuntimeError("MAC identity changed; destroy/recreate required")
+        # A MAC punctuation/case-only change can update Terraform state
+        # without writing an unchanged row back to the router.
+        if (cfg.ip == getattr(ctx.state, "ip", None)
+                and cfg.hostname == getattr(ctx.state, "hostname", None)
+                and cfg.enabled == getattr(ctx.state, "enabled", None)):
+            return DHCPState(normalized_mac(cfg.mac), cfg.mac, cfg.ip,
+                             cfg.hostname, cfg.enabled), None
         await provider().call(
             "update_ipv4_reservation", cfg.mac, ipaddr=cfg.ip,
             comment=cfg.hostname, enable=cfg.enabled)
