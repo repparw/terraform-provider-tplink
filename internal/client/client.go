@@ -31,6 +31,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -77,6 +78,8 @@ type Client struct {
 	seq         int
 	nn, ee      string // auth key material (session key exchange)
 	pwdNN       string // password key material (modulus, hex)
+	pwdPin      string // optional configured pin for the password key
+	authPin     string // optional configured pin for the auth key
 	pwdEE       string
 	stok        string
 	sysauth     string
@@ -97,6 +100,17 @@ type Config struct {
 	TLSSkipVerify bool
 	// Timeout is the per-request timeout; defaults to 30s.
 	Timeout time.Duration
+	// PasswordKeyPin, when set, is the expected SHA-256 fingerprint (hex, of
+	// the key's DER SubjectPublicKeyInfo encoding) of the router's
+	// password-encryption RSA key served by login?form=keys. The router's
+	// key is fingerprinted before any password encryption happens; a
+	// mismatch fails the login. Case-insensitive; an optional "sha256:"
+	// prefix is accepted.
+	PasswordKeyPin string
+	// AuthKeyPin, when set, is the expected SHA-256 fingerprint of the
+	// session key-exchange RSA key served by login?form=auth. Same rules as
+	// PasswordKeyPin.
+	AuthKeyPin string
 }
 
 // New returns a Client for cfg. It performs no I/O; call Authorize.
@@ -117,6 +131,14 @@ func New(cfg Config) (*Client, error) {
 		timeout = 30 * time.Second
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	pwdPin, err := normalizePin(cfg.PasswordKeyPin)
+	if err != nil {
+		return nil, fmt.Errorf("tplink: password key pin: %w", err)
+	}
+	authPin, err := normalizePin(cfg.AuthKeyPin)
+	if err != nil {
+		return nil, fmt.Errorf("tplink: auth key pin: %w", err)
+	}
 	if cfg.TLSSkipVerify {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // self-signed router cert
 	}
@@ -127,6 +149,8 @@ func New(cfg Config) (*Client, error) {
 		password:    cfg.Password,
 		http:        &http.Client{Timeout: timeout, Transport: transport},
 		loginDigest: hex.EncodeToString(sum[:]),
+		pwdPin:      pwdPin,
+		authPin:     authPin,
 	}, nil
 }
 
@@ -277,6 +301,9 @@ func (c *Client) requestPwdKeys(ctx context.Context) error {
 		return fmt.Errorf("tplink: failed to get password keys: %s", truncate(body))
 	}
 	c.pwdNN, c.pwdEE = parsed.Data.Password[0], parsed.Data.Password[1]
+	if err := c.verifyPin(c.pwdPin, c.pwdNN, c.pwdEE, "password"); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -302,7 +329,54 @@ func (c *Client) requestAuthKeys(ctx context.Context) error {
 	}
 	c.seq = parsed.Data.Seq
 	c.nn, c.ee = parsed.Data.Key[0], parsed.Data.Key[1]
+	if err := c.verifyPin(c.authPin, c.nn, c.ee, "auth"); err != nil {
+		return err
+	}
 	return nil
+}
+
+// verifyPin enforces an optional user-configured RSA public-key pin. The
+// router's key is fingerprinted (SHA-256 over DER SubjectPublicKeyInfo) and
+// compared before any password encryption or session-key exchange happens;
+// a mismatch fails closed and never re-enrolls.
+func (c *Client) verifyPin(pin, nHex, eHex, role string) error {
+	if pin == "" {
+		return nil
+	}
+	pub, err := rsaPublic(nHex, eHex)
+	if err != nil {
+		return fmt.Errorf("tplink: %s key: %w", role, err)
+	}
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		return fmt.Errorf("tplink: %s key: %w", role, err)
+	}
+	sum := sha256.Sum256(der)
+	fp := hex.EncodeToString(sum[:])
+	if fp != pin {
+		return fmt.Errorf(
+			"tplink: %s key pin mismatch: router key fingerprint sha256:%s does not match the configured pin sha256:%s; "+
+				"if the router was replaced or its keys were rotated intentionally, update the pin",
+			role, fp, pin)
+	}
+	return nil
+}
+
+// normalizePin validates and canonicalizes a user-configured key pin:
+// lowercase hex, with an optional "sha256:" prefix stripped.
+func normalizePin(pin string) (string, error) {
+	p := strings.ToLower(strings.TrimSpace(pin))
+	if p == "" {
+		return "", nil // no pin configured
+	}
+	p = strings.TrimPrefix(p, "sha256:")
+	if len(p) != 64 {
+		return "", errors.New("pin must be 64 hex characters (SHA-256), optionally prefixed with 'sha256:'")
+	}
+	if _, err := hex.DecodeString(p); err != nil {
+		return "", errors.New("pin must be hexadecimal")
+	}
+	return p, nil
 }
 
 // do performs one authenticated, encrypted request and returns the response
@@ -514,6 +588,13 @@ func (c *Client) Logout() error {
 
 // rsaPublic parses modulus/exponent hex strings into a public key.
 func rsaPublic(nHex, eHex string) (*rsa.PublicKey, error) {
+	return ParseRSAPublicKeyHex(nHex, eHex)
+}
+
+// ParseRSAPublicKeyHex parses a router RSA public key given as hexadecimal
+// modulus and exponent strings (the wire format of login?form=keys and
+// login?form=auth).
+func ParseRSAPublicKeyHex(nHex, eHex string) (*rsa.PublicKey, error) {
 	n, ok := new(big.Int).SetString(nHex, 16)
 	if !ok {
 		return nil, errors.New("tplink: bad RSA modulus")
@@ -523,6 +604,27 @@ func rsaPublic(nHex, eHex string) (*rsa.PublicKey, error) {
 		return nil, errors.New("tplink: bad RSA exponent")
 	}
 	return &rsa.PublicKey{N: n, E: int(e.Int64())}, nil
+}
+
+// FetchPreAuthKeys retrieves the router's pre-authentication RSA key pairs —
+// the password-encryption key (login?form=keys) and the session
+// key-exchange key (login?form=auth) — plus the handshake sequence number,
+// without authenticating or creating a session. Returns the password key
+// [modulus, exponent], the auth key [modulus, exponent] (hex), and seq.
+func FetchPreAuthKeys(ctx context.Context, cfg Config) ([2]string, [2]string, int, error) {
+	cl, err := New(cfg)
+	if err != nil {
+		return [2]string{}, [2]string{}, 0, err
+	}
+	cl.mu.Lock()
+	defer cl.mu.Unlock()
+	if err := cl.requestPwdKeys(ctx); err != nil {
+		return [2]string{}, [2]string{}, 0, err
+	}
+	if err := cl.requestAuthKeys(ctx); err != nil {
+		return [2]string{}, [2]string{}, 0, err
+	}
+	return [2]string{cl.pwdNN, cl.pwdEE}, [2]string{cl.nn, cl.ee}, cl.seq, nil
 }
 
 func rsaV15Encrypt(data []byte, nHex, eHex string) (string, error) {
