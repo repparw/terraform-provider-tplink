@@ -85,6 +85,21 @@ jobs:
           assert len(db["reservations"]) == len(db["forwards"]) == 1
           PY
 
+          # Changing MAC punctuation/case alone updates state, without a
+          # destroy/recreate or a router write.
+          sed -i 's/AA-BB-CC-DD-EE-FF/aa:bb:cc:dd:ee:ff/' main.tf
+          terraform plan -out=mac-case.plan
+          terraform show -json mac-case.plan > mac-case.json
+          python - <<'PY'
+          import json
+          changes = json.load(open("mac-case.json"))["resource_changes"]
+          dhcp = next(r for r in changes if r["type"] == "tplink_dhcp_reservation")
+          assert dhcp["change"]["actions"] == ["update"], dhcp
+          PY
+          terraform apply -auto-approve mac-case.plan
+          sed -i 's/aa:bb:cc:dd:ee:ff/AA-BB-CC-DD-EE-FF/' main.tf
+          terraform apply -auto-approve
+
           # Update fields in-place, ensuring the original identity remains.
           sed -i 's/hostname = "printer"/hostname = "printer-new"/' main.tf
           sed -i 's/internal_port = "8443"/internal_port = "8080"/' main.tf
