@@ -23,3 +23,19 @@ jobs:
       - run: python -m pip install -e './python[test]'
       - run: python -m compileall -q python/tplink_py
       - run: pytest -q python/tests
+
+  upstream-discovery:
+    # Fork Actions are not enabled yet; exercise its read-only detector in
+    # this experiment without attempting any router login.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: repparw/TP-Link-Archer-C6U
+          ref: c6fb9afa069c32adc99053210e4276b64ca4926a
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e . pytest flake8
+      - run: python -m flake8 tplinkrouterc6u/discovery.py test/test_discovery.py
+      - run: python -m pytest -q test/test_discovery.py
