@@ -147,7 +147,7 @@ func (r *dhcpReservationResource) Read(ctx context.Context, req resource.ReadReq
 	}
 	for _, res := range reservations {
 		if client.NormalizeMAC(res.MAC) == client.NormalizeMAC(state.MAC.ValueString()) {
-			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res))...)
+			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res, state.MAC))...)
 			return
 		}
 	}
@@ -178,7 +178,7 @@ func (r *dhcpReservationResource) Update(ctx context.Context, req resource.Updat
 					fmt.Sprintf("router returned unexpected fields for reservation %q after write", plan.MAC.ValueString()))
 				return
 			}
-			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res))...)
+			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res, plan.MAC))...)
 			return
 		}
 	}

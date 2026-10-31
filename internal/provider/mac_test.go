@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/repparw/terraform-provider-tplink/internal/client"
 )
 
 func stringRequest(configValue string) (validator.StringRequest, *validator.StringResponse) {
@@ -63,4 +64,22 @@ func TestMACReplacementIsIdentityBased(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Resource state must retain explicitly configured spelling after a write or
+// refresh, even though router identity and import IDs are canonicalized.
+func TestDHCPResourceStatePreservesMAC(t *testing.T) {
+	configured := types.StringValue("aa:bb:cc:dd:ee:ff")
+	got := (&dhcpReservationResource{}).stateFrom(client.DHCPReservation{
+		MAC: "AA-BB-CC-DD-EE-FF", IP: "192.168.0.10", Enabled: true,
+	}, configured)
+	if got.MAC.ValueString() != configured.ValueString() || got.ID.ValueString() != "AA-BB-CC-DD-EE-FF" {
+		t.Fatalf("unexpected state: %+v", got)
+	}
+}
+func TestPortForwardResourceStatePreservesProtocol(t *testing.T) {
+	got := (&portForwardResource{}).stateFrom(client.PortForward{
+		Name: "web", IP: "192.168.0.10", Protocol: "UDP",
+	}, types.StringValue("udp"))
+	if got.Protocol.ValueString() != "udp" { t.Fatalf("unexpected protocol: %s", got.Protocol.ValueString()) }
 }

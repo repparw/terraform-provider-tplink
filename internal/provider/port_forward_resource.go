@@ -163,7 +163,7 @@ func (r *portForwardResource) Read(ctx context.Context, req resource.ReadRequest
 	}
 	for _, res := range rules {
 		if res.Name == state.Name.ValueString() {
-			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res))...)
+			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res, state.Protocol))...)
 			return
 		}
 	}
@@ -193,7 +193,7 @@ func (r *portForwardResource) Update(ctx context.Context, req resource.UpdateReq
 					fmt.Sprintf("router returned unexpected fields for rule %q after write", plan.Name.ValueString()))
 				return
 			}
-			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res))...)
+			resp.Diagnostics.Append(resp.State.Set(ctx, r.stateFrom(res, plan.Protocol))...)
 			return
 		}
 	}

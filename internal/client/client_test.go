@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
+	"sync"
 	"testing"
 )
 
@@ -300,4 +302,51 @@ func TestMACNormalizationEndToEnd(t *testing.T) {
 	if len(got) != 0 {
 		t.Fatalf("row not removed: %+v", got)
 	}
+}
+
+// TestDuplicateCreateAndMissingDelete verifies that identity is unique and
+// deleting a missing target is safe when the router was changed out-of-band.
+func TestDuplicateCreateAndMissingDelete(t *testing.T) {
+	_, cl := startMock(t, "pw")
+	r := DHCPReservation{MAC: "01:02:03:04:05:06", IP: "192.168.0.2", Hostname: "test", Enabled: true}
+	if err := cl.AddDHCPReservation(r); err != nil { t.Fatal(err) }
+	if err := cl.AddDHCPReservation(r); err == nil { t.Fatal("duplicate DHCP reservation unexpectedly accepted") }
+	res, err := cl.GetDHCPReservations()
+	if err != nil || len(res) != 1 { t.Fatalf("unexpected DHCP rows: %+v, %v", res, err) }
+	if err := cl.DeleteDHCPReservation(r.MAC); err != nil { t.Fatal(err) }
+	if err := cl.DeleteDHCPReservation(r.MAC); err != nil { t.Fatalf("idempotent DHCP delete: %v", err) }
+
+	f := PortForward{Name: "test", IP: "192.168.0.2", ExternalPort: "1234", InternalPort: "1234", Protocol: "udp", Enabled: true}
+	if err := cl.AddPortForward(f); err != nil { t.Fatal(err) }
+	if err := cl.AddPortForward(f); err == nil { t.Fatal("duplicate port forward unexpectedly accepted") }
+	rules, err := cl.GetPortForwards()
+	if err != nil || len(rules) != 1 { t.Fatalf("unexpected port forwards: %+v, %v", rules, err) }
+	if err := cl.DeletePortForward(f.Name); err != nil { t.Fatal(err) }
+	if err := cl.DeletePortForward(f.Name); err != nil { t.Fatalf("idempotent port delete: %v", err) }
+}
+
+// The provider may apply distinct resources concurrently. Their reads and
+// index-based removals must form one serialized transaction per client.
+func TestConcurrentDHCPDeletes(t *testing.T) {
+	_, cl := startMock(t, "pw")
+	const count = 12
+	for i := 0; i < count; i++ {
+		mac := fmt.Sprintf("00:11:22:33:44:%02X", i)
+		if err := cl.AddDHCPReservation(DHCPReservation{MAC: mac, IP: fmt.Sprintf("192.168.0.%d", i+10), Enabled: true}); err != nil { t.Fatal(err) }
+	}
+	var wg sync.WaitGroup
+	errors := make(chan error, count)
+	for i := 0; i < count; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errors <- cl.DeleteDHCPReservation(fmt.Sprintf("00:11:22:33:44:%02X", i))
+		}(i)
+	}
+	wg.Wait()
+	close(errors)
+	for err := range errors { if err != nil { t.Errorf("concurrent delete: %v", err) } }
+	remaining, err := cl.GetDHCPReservations()
+	if err != nil { t.Fatal(err) }
+	if len(remaining) != 0 { t.Fatalf("expected empty table, got %+v", remaining) }
 }
