@@ -1,0 +1,104 @@
+name: Release Python provider
+
+on:
+  push:
+    tags: ['pyprovider-v[0-9]*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    # Tagging publishes through the 'publish' environment; configure it with
+    # required reviewers and the GPG secrets documented in python/RELEASING.md.
+    if: github.repository == 'repparw/terraform-provider-tplink'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-amd64
+          - os: macos-latest
+            platform: darwin-arm64
+          - os: windows-latest
+            platform: windows-amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies and PyInstaller
+        run: |
+          python -m pip install -e './python[test]'
+          python -m pip install 'pyinstaller>=6.14,<7'
+      - name: Bundle provider
+        env:
+          PYVIDER_PROVIDER_VERSION: ${{ github.ref_name }}
+        run: python python/build_frozen.py
+      - name: Verify frozen provider handshake
+        run: python python/validate_frozen.py
+      - name: Package registry-compatible archive
+        shell: bash
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: python python/package_release.py "$VERSION" "${{ matrix.platform }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: |
+            dist/release/*.zip
+            dist/release/terraform-registry-manifest.json
+
+  publish:
+    needs: release
+    if: github.repository == 'repparw/terraform-provider-tplink'
+    runs-on: ubuntu-latest
+    environment: publish
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/release
+          merge-multiple: true
+      - name: Require signing credentials
+        env:
+          SIGNING_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          PASSPHRASE: ${{ secrets.PASSPHRASE }}
+        run: |
+          if [ -z "$SIGNING_KEY" ] || [ -z "$PASSPHRASE" ]; then
+            echo "::error::Configure GPG_PRIVATE_KEY and PASSPHRASE in the publish environment before releasing"
+            exit 1
+          fi
+      - name: Import signing key
+        id: gpg
+        uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.PASSPHRASE }}
+      - name: Generate SHA256SUMS
+        working-directory: dist/release
+        run: |
+          VERSION="${GITHUB_REF_NAME#pyprovider-v}"
+          sha256sum terraform-provider-tplink_*_${VERSION}_*.zip \
+            terraform-provider-tplink_*_${VERSION}_manifest.json \
+            > terraform-provider-tplink_${VERSION}_SHA256SUMS
+      - name: Sign checksums (binary detached GPG)
+        working-directory: dist/release
+        env:
+          GPG_FINGERPRINT: ${{ steps.gpg.outputs.fingerprint }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#pyprovider-v}"
+          gpg --batch --local-user "$GPG_FINGERPRINT" \
+            --output terraform-provider-tplink_${VERSION}_SHA256SUMS.sig \
+            --detach-sign \
+            terraform-provider-tplink_${VERSION}_SHA256SUMS
+      - name: Publish GitHub release
+        working-directory: dist/release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
+            --notes "Python provider release; see python/RELEASING.md for verification steps." \
+            *.zip terraform-registry-manifest.json *_SHA256SUMS *_SHA256SUMS.sig

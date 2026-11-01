@@ -1,7 +1,10 @@
-# Experimental Python-only implementation
+# Python provider (the v0.1.0 release implementation)
 
-**Not production-ready.** This is an isolated architecture spike, not a replacement
-for the validated Go provider on main and not a release target.
+This is the provider being promoted to v0.1.0: a Python/Pyvider implementation
+with full schema parity and hardware-verified reads and writes against the
+**Archer AX23 v2.0 (firmware 1.1.2 Build 20250814)** — the only advertised
+target. The Go implementation on main remains the reference client until this
+passes the final release checks, after which it is retired.
 
 It uses Pyvider 0.8.1 for Terraform protocol v6 and a pinned tplinkrouterc6u fork commit
 for the TP-Link SG router protocol. No sidecar or duplicated router crypto.
@@ -18,10 +21,13 @@ Current proof:
 - a pinned fork commit adds missing in-place DHCP updates upstream; replace
   the Git dependency with a released library once upstream accepts it
 
-Still requires real-device verification: exact firmware API behavior, handling
-login expiry, NixOS executability, cancellation, and concurrency under load.
-Cross-platform packaging and full Terraform/OpenTofu installs must pass before
-considering any replacement of the Go provider.
+Hardware verification status: full read parity (five data sources, compared
+field-by-field against the Go provider) and a complete write lifecycle
+(create/update/import/destroy of disposable rows) executed on the AX23 v2;
+session-expiry re-authentication covered by unit tests. NixOS frozen-executable
+execution requires `programs.nix-ld.enable = true;` — the only runtime
+requirement. Remaining release work: cross-platform CI packaging checks and
+the release-signing pipeline (`RELEASING.md`).
 
 This prototype explicitly selects `TplinkRouterSG` instead of the legacy
 auto-detect routine to avoid credential-probing across router families.
