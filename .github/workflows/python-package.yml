@@ -1,0 +1,76 @@
+name: Python provider frozen executable
+
+on:
+  pull_request:
+    paths:
+      - 'python/tplink_py/**'
+      - 'python/pyproject.toml'
+      - 'python/check_dependency_pin.py'
+      - 'python/dependency-lock.json'
+      - 'python/build_frozen.py'
+      - 'python/validate_frozen.py'
+      - 'python/package_release.py'
+      - 'python/validate_registry_package.py'
+      - 'python/terraform-registry-manifest.json'
+      - 'python/NOTICE.md'
+      - '.github/workflows/python-release.yml'
+      - 'python/launcher.py'
+      - '.github/workflows/python-package.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    # These platforms require separate native builds. No bundled Python is
+    # installed or required on the eventual Terraform user's machine.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux_amd64
+          - os: macos-latest
+            platform: darwin_arm64
+          - os: windows-latest
+            platform: windows_amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: '1.17.1'
+          terraform_wrapper: false
+      - name: Verify library dependency has not moved
+        run: python python/check_dependency_pin.py
+      - name: Install dependencies and PyInstaller
+        run: |
+          python -m pip install -e './python[test]'
+          python -m pip install 'pyinstaller>=6.14,<7'
+      - name: Bundle provider with a test release version
+        env:
+          PYVIDER_PROVIDER_VERSION: '0.1.0'
+        run: python python/build_frozen.py
+      - name: Verify real Terraform plugin handshake, embedded version, and schemas
+        env:
+          PYVIDER_PROVIDER_VERSION: '0.1.0'
+        run: python python/validate_frozen.py
+      - name: Dry-run release archive packaging (never publish)
+        run: python python/package_release.py 0.1.0 "${{ matrix.platform }}"
+      - name: Verify release archive structure
+        run: python -m pytest -q python/tests/test_release.py
+      - name: Offline Terraform init from packaged provider ZIP
+        run: python python/validate_registry_package.py 0.1.0 "${{ matrix.platform }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tplink-python-${{ matrix.platform }}-experiment
+          path: |
+            dist/python/terraform-provider-tplink*
+            python/LICENSE
+            python/NOTICE.md
+            dist/release/*.zip
+            dist/release/*_manifest.json
+          retention-days: 7

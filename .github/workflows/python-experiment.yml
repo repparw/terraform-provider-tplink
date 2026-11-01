@@ -1,0 +1,126 @@
+name: Python provider prototype
+
+on:
+  pull_request:
+    paths:
+      - 'python/**'
+      - '.github/workflows/python-experiment.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  adapter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python python/check_dependency_pin.py
+      - run: python -m pip install -e './python[test]'
+      - run: python -m compileall -q python/tplink_py
+      - run: pytest -q python/tests
+
+  upstream-discovery:
+    # Fork Actions are not enabled yet; exercise its read-only detector in
+    # this experiment without attempting any router login.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: repparw/TP-Link-Archer-C6U
+          ref: c6fb9afa069c32adc99053210e4276b64ca4926a
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e . pytest flake8
+      - run: python -m flake8 tplinkrouterc6u/discovery.py test/test_discovery.py
+      - run: python -m pytest -q test/test_discovery.py
+
+  schema-smoke:
+    # No router connection: check that the Python executable actually speaks
+    # Terraform Plugin Protocol 6 and exposes the expected schema.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: '1.17.1'
+          terraform_wrapper: false
+      - name: Install editable Python provider in an isolated venv
+        run: |
+          python -m venv python/.venv
+          python/.venv/bin/pip install -e './python[test]'
+          cd python
+          .venv/bin/pyvider install
+      - name: Query Terraform provider schema without logging into router
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/schema"
+          cat > "$RUNNER_TEMP/schema/main.tf" <<'HCL'
+          terraform {
+            required_providers {
+              tplink = {
+                source = "local/providers/tplink"
+                version = "0.0.0"
+              }
+            }
+          }
+          HCL
+          cd "$RUNNER_TEMP/schema"
+          # dev_overrides tests the actual provider protocol directly. This
+          # experiment is not a registered provider and has no lockfile yet.
+          cat > "$RUNNER_TEMP/provider.tfrc" <<EOF
+          provider_installation {
+            dev_overrides {
+              "local/providers/tplink" = "$HOME/.terraform.d/plugins/local/providers/tplink/0.0.0/linux_amd64"
+            }
+            direct {}
+          }
+          EOF
+          TF_CLI_CONFIG_FILE="$RUNNER_TEMP/provider.tfrc" terraform providers schema -json > schema.json
+          python - <<'PY'
+          import json
+          data = json.load(open("schema.json"))
+          schemas = list(data["provider_schemas"].values())
+          assert len(schemas) == 1, list(data["provider_schemas"])
+          attributes = schemas[0]["provider"]["block"]["attributes"]
+          assert {"host", "username", "password", "tls_skip_verify", "timeout_seconds", "password_key_pin", "auth_key_pin"} <= set(attributes)
+          assert "tplink_firmware" in schemas[0]["data_source_schemas"]
+          assert "tplink_port_forward" in schemas[0]["resource_schemas"]
+          PY
+
+  upstream-dhcp:
+    # Read-only upstream method tests: this fork's own Actions are disabled.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: repparw/TP-Link-Archer-C6U
+          ref: 19cceb975ed3c1d3ce666e1b1dc2dda03899497e
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e . pytest flake8
+      - run: python -m flake8 tplinkrouterc6u/client/c6u.py test/test_dhcp_update.py
+      - run: python -m pytest -q test/test_dhcp_update.py
+
+  upstream-sg-key-pinning:
+    # Test precisely the immutable library tag this provider installs.
+    # The separate fork PR #3 is not part of the dependency in pyproject.toml.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: repparw/TP-Link-Archer-C6U
+          ref: 08a77c8e55142d91b9affef4ac91097a4a873bbd
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e . pytest flake8
+      - run: python -m flake8 tplinkrouterc6u/client/sg.py test/test_sg_key_pins.py
+      - run: python -m pytest -q test/test_sg_key_pins.py

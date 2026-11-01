@@ -1,0 +1,149 @@
+name: Python Terraform lifecycle acceptance
+
+on:
+  pull_request:
+    paths:
+      - 'python/**'
+      - '.github/workflows/python-terraform-acceptance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: '1.17.1'
+          terraform_wrapper: false
+      - run: python python/check_dependency_pin.py
+      - run: |
+          python -m venv python/.venv
+          python/.venv/bin/pip install -e './python[test]'
+          cd python && .venv/bin/pyvider install
+      - name: Exercise plan, apply, drift, updates, replacement, import and delete
+        env:
+          TPLINK_MOCK_STORE: ${{ runner.temp }}/fake-router.json
+          PYTHONPATH: ${{ github.workspace }}/python/tests/mock_site
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/fake.tfrc" <<EOF
+          provider_installation {
+            dev_overrides {
+              "local/providers/tplink" = "$HOME/.terraform.d/plugins/local/providers/tplink/0.0.0/linux_amd64"
+            }
+            direct {}
+          }
+          EOF
+          export TF_CLI_CONFIG_FILE="$RUNNER_TEMP/fake.tfrc"
+          mkdir -p "$RUNNER_TEMP/lifecycle"
+          cd "$RUNNER_TEMP/lifecycle"
+          cat > main.tf <<'HCL'
+          terraform {
+            required_providers {
+              tplink = {
+                source = "local/providers/tplink"
+                version = "0.0.0"
+              }
+            }
+          }
+          provider "tplink" {
+            host = "http://ci-mock.invalid"
+            password = "irrelevant"
+          }
+          resource "tplink_dhcp_reservation" "printer" {
+            mac = "AA-BB-CC-DD-EE-FF"
+            ip = "192.168.0.20"
+            hostname = "printer"
+            enabled = true
+          }
+          resource "tplink_port_forward" "web" {
+            name = "web"
+            ip = "192.168.0.20"
+            external_port = "443"
+            internal_port = "8443"
+            protocol = "TCP"
+            enabled = true
+          }
+          data "tplink_firmware" "current" {}
+          data "tplink_router" "status" {}
+          data "tplink_devices" "connected" {}
+          data "tplink_dhcp_reservations" "all" {}
+          data "tplink_port_forwards" "all" {}
+          HCL
+          terraform plan -out=initial.plan
+          terraform apply -auto-approve initial.plan
+          terraform state list
+          terraform plan -detailed-exitcode
+          python - <<'PY'
+          import json, os
+          db = json.load(open(os.environ["TPLINK_MOCK_STORE"]))
+          assert len(db["reservations"]) == len(db["forwards"]) == 1
+          PY
+
+          # Changing MAC punctuation/case alone updates state, without a
+          # destroy/recreate or a router write.
+          sed -i 's/AA-BB-CC-DD-EE-FF/aa:bb:cc:dd:ee:ff/' main.tf
+          terraform plan -out=mac-case.plan
+          terraform show -json mac-case.plan > mac-case.json
+          python - <<'PY'
+          import json
+          changes = json.load(open("mac-case.json"))["resource_changes"]
+          dhcp = next(r for r in changes if r["type"] == "tplink_dhcp_reservation")
+          assert dhcp["change"]["actions"] == ["update"], dhcp
+          PY
+          terraform apply -auto-approve mac-case.plan
+          sed -i 's/aa:bb:cc:dd:ee:ff/AA-BB-CC-DD-EE-FF/' main.tf
+          terraform apply -auto-approve
+
+          # Update fields in-place, ensuring the original identity remains.
+          sed -i 's/hostname = "printer"/hostname = "printer-new"/' main.tf
+          sed -i 's/internal_port = "8443"/internal_port = "8080"/' main.tf
+          terraform plan -out=update.plan
+          terraform show -json update.plan > update.json
+          python - <<'PY'
+          import json
+          changes = json.load(open("update.json"))["resource_changes"]
+          actions = {r["type"]: r["change"]["actions"] for r in changes}
+          assert actions["tplink_dhcp_reservation"] == ["update"], actions
+          assert actions["tplink_port_forward"] == ["update"], actions
+          PY
+          terraform apply -auto-approve update.plan
+          terraform plan -detailed-exitcode
+
+          # Identity changes must be planned as replacement, never in-place.
+          cp main.tf original.tf.bak
+          sed -i 's/AA-BB-CC-DD-EE-FF/AA-BB-CC-DD-EE-00/' main.tf
+          sed -i 's/name = "web"/name = "replacement"/' main.tf
+          terraform plan -out=replace.plan
+          terraform show -json replace.plan > replace.json
+          python - <<'PY'
+          import json
+          changes = json.load(open("replace.json"))["resource_changes"]
+          actions = {r["type"]: r["change"]["actions"] for r in changes}
+          for resource_type in ("tplink_dhcp_reservation", "tplink_port_forward"):
+              assert set(actions[resource_type]) == {"create", "delete"}, actions
+          PY
+          mv original.tf.bak main.tf
+
+          # Import the same device into an independent Terraform state.
+          mkdir -p ../import
+          cp main.tf ../import/main.tf
+          cd ../import
+          terraform import tplink_dhcp_reservation.printer AA-BB-CC-DD-EE-FF
+          terraform import tplink_port_forward.web web
+          terraform plan -detailed-exitcode
+
+          # Destroy original resources only (the imported state remains local).
+          cd ../lifecycle
+          terraform destroy -auto-approve
+          python - <<'PY'
+          import json, os
+          db = json.load(open(os.environ["TPLINK_MOCK_STORE"]))
+          assert db["reservations"] == [] and db["forwards"] == [], db
+          PY
