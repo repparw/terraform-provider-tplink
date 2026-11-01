@@ -6,7 +6,7 @@ with full schema parity and hardware-verified reads and writes against the
 target. The Go implementation on main remains the reference client until this
 passes the final release checks, after which it is retired.
 
-It uses Pyvider 0.8.1 for Terraform protocol v6 and a pinned tplinkrouterc6u fork commit
+It uses Pyvider 0.8.1 for Terraform protocol v6 and the reviewed tplinkrouterc6u fork tag `pyprovider-pin-20261031`
 for the TP-Link SG router protocol. No sidecar or duplicated router crypto.
 
 Current proof:
@@ -17,8 +17,8 @@ Current proof:
 - Terraform plan/apply/import/replacement/drift/destroy against a CI-only
   persistent mock router, without physical router changes
 - Terraform schema handshake for the Python development wrapper and frozen
-  Linux binary; packaged Windows/macOS tests are in progress
-- a pinned fork commit adds missing in-place DHCP updates upstream; replace
+  Linux binary; packaged Windows/macOS/Linux schema tests have passed in CI
+- the pinned fork tag adds hardware-tested in-place DHCP updates; replace
   the Git dependency with a released library once upstream accepts it
 
 Hardware verification status: full read parity (five data sources, compared

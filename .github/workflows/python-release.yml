@@ -9,46 +9,50 @@ permissions:
 
 jobs:
   release:
-    # Tagging publishes through the 'publish' environment; configure it with
-    # required reviewers and the GPG secrets documented in python/RELEASING.md.
+    # A tag alone never publishes a release. Publish requires an approved
+    # GitHub Actions environment and an imported private signing key.
     if: github.repository == 'repparw/terraform-provider-tplink'
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
-            platform: linux-amd64
+            platform: linux_amd64
           - os: macos-latest
-            platform: darwin-arm64
+            platform: darwin_arm64
           - os: windows-latest
-            platform: windows-amd64
+            platform: windows_amd64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: '1.17.1'
+          terraform_wrapper: false
       - name: Install dependencies and PyInstaller
         run: |
           python -m pip install -e './python[test]'
           python -m pip install 'pyinstaller>=6.14,<7'
-      - name: Bundle provider
-        env:
-          PYVIDER_PROVIDER_VERSION: ${{ github.ref_name }}
-        run: python python/build_frozen.py
-      - name: Verify frozen provider handshake
-        run: python python/validate_frozen.py
-      - name: Package registry-compatible archive
+      - name: Bundle, verify and package provider
         shell: bash
-        env:
-          VERSION: ${{ github.ref_name }}
-        run: python python/package_release.py "$VERSION" "${{ matrix.platform }}"
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#pyprovider-v}"
+          export PYVIDER_PROVIDER_VERSION="$VERSION"
+          python python/build_frozen.py
+          python python/validate_frozen.py
+          python python/package_release.py "$VERSION" "${{ matrix.platform }}"
+          python -m pytest -q python/tests/test_release.py
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.platform }}
+          if-no-files-found: error
           path: |
             dist/release/*.zip
-            dist/release/terraform-registry-manifest.json
+            dist/release/*_manifest.json
 
   publish:
     needs: release
@@ -60,8 +64,21 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: release-*
           path: dist/release
           merge-multiple: true
+      - name: Validate complete release archive matrix before signing
+        working-directory: dist/release
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#pyprovider-v}"
+          for PLATFORM in linux_amd64 darwin_arm64 windows_amd64; do
+            test -s "terraform-provider-tplink_${VERSION}_${PLATFORM}.zip"
+          done
+          test -s "terraform-provider-tplink_${VERSION}_manifest.json"
+          test "$(find . -maxdepth 1 -name 'terraform-provider-tplink_*.zip' | wc -l)" -eq 3
+          python -c 'import json,sys; x=json.load(open(sys.argv[1])); assert x == {"version":1,"metadata":{"protocol_versions":["6.0"]}}' "terraform-provider-tplink_${VERSION}_manifest.json"
       - name: Require signing credentials
         env:
           SIGNING_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
@@ -77,28 +94,40 @@ jobs:
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
-      - name: Generate SHA256SUMS
+      - name: Generate and validate checksums
         working-directory: dist/release
+        shell: bash
         run: |
+          set -euo pipefail
           VERSION="${GITHUB_REF_NAME#pyprovider-v}"
-          sha256sum terraform-provider-tplink_*_${VERSION}_*.zip \
-            terraform-provider-tplink_*_${VERSION}_manifest.json \
-            > terraform-provider-tplink_${VERSION}_SHA256SUMS
+          sha256sum "terraform-provider-tplink_${VERSION}_"*.zip \
+            "terraform-provider-tplink_${VERSION}_manifest.json" \
+            > "terraform-provider-tplink_${VERSION}_SHA256SUMS"
+          sha256sum -c "terraform-provider-tplink_${VERSION}_SHA256SUMS"
       - name: Sign checksums (binary detached GPG)
         working-directory: dist/release
         env:
           GPG_FINGERPRINT: ${{ steps.gpg.outputs.fingerprint }}
+        shell: bash
         run: |
+          set -euo pipefail
           VERSION="${GITHUB_REF_NAME#pyprovider-v}"
           gpg --batch --local-user "$GPG_FINGERPRINT" \
-            --output terraform-provider-tplink_${VERSION}_SHA256SUMS.sig \
-            --detach-sign \
-            terraform-provider-tplink_${VERSION}_SHA256SUMS
+            --output "terraform-provider-tplink_${VERSION}_SHA256SUMS.sig" \
+            --detach-sign "terraform-provider-tplink_${VERSION}_SHA256SUMS"
+          gpg --verify "terraform-provider-tplink_${VERSION}_SHA256SUMS.sig" \
+            "terraform-provider-tplink_${VERSION}_SHA256SUMS"
       - name: Publish GitHub release
         working-directory: dist/release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
-            --notes "Python provider release; see python/RELEASING.md for verification steps." \
-            *.zip terraform-registry-manifest.json *_SHA256SUMS *_SHA256SUMS.sig
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#pyprovider-v}"
+          gh release create "$GITHUB_REF_NAME" --title "v$VERSION" \
+            --notes "Python provider release; see RELEASING.md for verification steps." \
+            "terraform-provider-tplink_${VERSION}_"*.zip \
+            "terraform-provider-tplink_${VERSION}_manifest.json" \
+            "terraform-provider-tplink_${VERSION}_SHA256SUMS" \
+            "terraform-provider-tplink_${VERSION}_SHA256SUMS.sig"

@@ -7,6 +7,10 @@ on:
       - 'python/pyproject.toml'
       - 'python/build_frozen.py'
       - 'python/validate_frozen.py'
+      - 'python/package_release.py'
+      - 'python/terraform-registry-manifest.json'
+      - 'python/NOTICE.md'
+      - '.github/workflows/python-release.yml'
       - 'python/launcher.py'
       - '.github/workflows/python-package.yml'
 
@@ -22,11 +26,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            platform: linux-amd64
+            platform: linux_amd64
           - os: macos-latest
-            platform: darwin-arm64
+            platform: darwin_arm64
           - os: windows-latest
-            platform: windows-amd64
+            platform: windows_amd64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -45,6 +49,10 @@ jobs:
         run: python python/build_frozen.py
       - name: Verify real Terraform plugin handshake and schemas
         run: python python/validate_frozen.py
+      - name: Dry-run release archive packaging (never publish)
+        run: python python/package_release.py 0.1.0 "${{ matrix.platform }}"
+      - name: Verify release archive structure
+        run: python -m pytest -q python/tests/test_release.py
       - uses: actions/upload-artifact@v4
         with:
           name: tplink-python-${{ matrix.platform }}-experiment
@@ -52,4 +60,6 @@ jobs:
             dist/python/terraform-provider-tplink*
             python/LICENSE
             python/NOTICE.md
+            dist/release/*.zip
+            dist/release/*_manifest.json
           retention-days: 7
