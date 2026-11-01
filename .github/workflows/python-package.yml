@@ -8,6 +8,7 @@ on:
       - 'python/build_frozen.py'
       - 'python/validate_frozen.py'
       - 'python/package_release.py'
+      - 'python/validate_registry_package.py'
       - 'python/terraform-registry-manifest.json'
       - 'python/NOTICE.md'
       - '.github/workflows/python-release.yml'
@@ -45,14 +46,20 @@ jobs:
         run: |
           python -m pip install -e './python[test]'
           python -m pip install 'pyinstaller>=6.14,<7'
-      - name: Bundle provider
+      - name: Bundle provider with a test release version
+        env:
+          PYVIDER_PROVIDER_VERSION: '0.1.0'
         run: python python/build_frozen.py
-      - name: Verify real Terraform plugin handshake and schemas
+      - name: Verify real Terraform plugin handshake, embedded version, and schemas
+        env:
+          PYVIDER_PROVIDER_VERSION: '0.1.0'
         run: python python/validate_frozen.py
       - name: Dry-run release archive packaging (never publish)
         run: python python/package_release.py 0.1.0 "${{ matrix.platform }}"
       - name: Verify release archive structure
         run: python -m pytest -q python/tests/test_release.py
+      - name: Offline Terraform init from packaged provider ZIP
+        run: python python/validate_registry_package.py 0.1.0 "${{ matrix.platform }}"
       - uses: actions/upload-artifact@v4
         with:
           name: tplink-python-${{ matrix.platform }}-experiment

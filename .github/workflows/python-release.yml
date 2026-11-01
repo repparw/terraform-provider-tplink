@@ -46,6 +46,7 @@ jobs:
           python python/validate_frozen.py
           python python/package_release.py "$VERSION" "${{ matrix.platform }}"
           python -m pytest -q python/tests/test_release.py
+          python python/validate_registry_package.py "$VERSION" "${{ matrix.platform }}"
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.platform }}
