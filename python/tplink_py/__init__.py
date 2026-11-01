@@ -31,8 +31,8 @@ class TPLinkProvider(BaseProvider):
         await super().configure(config)
         # This POC intentionally selects SG explicitly until passive-first
         # discovery is upstream. Never call the legacy get_client() detector.
-        # Existing library releases do not expose pinning yet. Do not pass
-        # unsupported pin kwargs, and never silently ignore configured pins.
+        # The pinned fork tag supports these pre-auth key checks. Keep the
+        # guard for incompatible dependency changes and fail closed.
         pin_kwargs = {
             key: str(value) for key in ("password_key_pin", "auth_key_pin")
             if (value := getattr(config, key, None))

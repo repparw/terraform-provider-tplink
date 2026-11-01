@@ -65,7 +65,8 @@ them.
 
 The SG client change is staged in
 [the Python library fork](https://github.com/repparw/TP-Link-Archer-C6U/pull/3).
-**Current dependency tag does not yet contain the SG pinning implementation.**
-Repin to a reviewed new immutable tag, then test correct/mismatched pins
-end-to-end before treating the feature as finished. No router I/O occurs during
-provider configuration.
+**The pinned dependency tag already contains both SG pin verifiers.** Its
+`test/test_sg_key_pins.py` tests are run against that exact tag in provider CI.
+Hardware validation of correctly pinned login and mismatched keys is still
+required before claiming the pinning feature has been validated on AX23.
+No router I/O occurs during provider configuration.

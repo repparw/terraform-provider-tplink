@@ -11,11 +11,11 @@ required-reviewer `publish` environment.
 - Frozen Linux binary requires a compatible glibc loader. Stock NixOS needs
   `programs.nix-ld.enable = true;` and any required dynamic libraries such
   as `libz` available to nix-ld. A standalone NixOS packaging option is open.
-- The SG RSA pinning implementation exists in
-  [the upstream-library fork PR #3](https://github.com/repparw/TP-Link-Archer-C6U/pull/3),
-  but the current provider dependency tag predates it. The provider refuses
-  configured pins rather than silently disabling them. Pin support must be
-  repinned, reviewed and tested before claiming pinning works on Python.
+- The pinned library tag `pyprovider-pin-20261031` already includes both
+  SG RSA public-key pin checks, and CI tests that specific tag. Fork PR #3
+  contains a separate proposed implementation; it is not the pinned code.
+  Correct/mismatched pins still need authorized live AX23 verification.
+  The provider fails closed if a future library dependency omits pin support.
 - Passive-first auto-detection is not in the Python release. AX23 uses SG
   explicitly and avoids legacy credential-based probing.
 
@@ -23,8 +23,9 @@ required-reviewer `publish` environment.
 
 1. Stabilize the upstream Python-library dependency and keep its source
    available. Prefer an immutable reviewed reference; verify the tag's SHA.
-2. Validate both optional RSA pins against isolated tests and, with explicit
-   hardware authorization, the real router. Do not hardcode fingerprint values.
+2. Validate both optional RSA pins against the installed pinned-library
+   tests and, with explicit hardware authorization, the real router. Do not
+   hardcode fingerprint values.
 3. Update `docs/` and `examples/` to match the actual provider schema.
 4. Review license compatibility and create a complete transitive dependency
    attribution/source bundle. The frozen Python provider is GPL-covered; the

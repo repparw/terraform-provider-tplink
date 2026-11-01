@@ -109,17 +109,17 @@ jobs:
       - run: python -m pytest -q test/test_dhcp_update.py
 
   upstream-sg-key-pinning:
-    # The Python SG transport implements both pre-login RSA/SPKI pins.
-    # No physical router requests are made. Fork Actions are unavailable.
+    # Test precisely the immutable library tag this provider installs.
+    # The separate fork PR #3 is not part of the dependency in pyproject.toml.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           repository: repparw/TP-Link-Archer-C6U
-          ref: dbcb272d2ffd6e0958952f59fffdfc2e89218fde
+          ref: 08a77c8e55142d91b9affef4ac91097a4a873bbd
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: python -m pip install -e . pytest flake8
-      - run: python -m flake8 tplinkrouterc6u/client/sg.py test/test_sg_key_pinning.py
-      - run: python -m pytest -q test/test_sg_key_pinning.py
+      - run: python -m flake8 tplinkrouterc6u/client/sg.py test/test_sg_key_pins.py
+      - run: python -m pytest -q test/test_sg_key_pins.py

@@ -221,3 +221,34 @@ def test_pins_forwarded_without_login_when_library_supports_them():
         "auth_key_pin": "bb" * 32,
     }
     assert not instance._authenticated
+
+
+def test_installed_fork_supports_both_real_pin_parameters():
+    import inspect
+    from tplinkrouterc6u import TplinkRouterSG
+    params = inspect.signature(TplinkRouterSG.__init__).parameters
+    assert {"password_key_pin", "auth_key_pin"} <= set(params)
+    # The pinned implementation must verify both keys before posting login.
+    assert hasattr(TplinkRouterSG, "_verify_key_pin")
+
+
+def test_provider_blocks_substituted_password_key_without_login():
+    from Crypto.PublicKey import RSA
+    from unittest.mock import Mock
+    from tplink_py import TPLinkProvider
+
+    key = RSA.generate(1024)
+    response = Mock()
+    response.json.return_value = {
+        "data": {"password": [format(key.n, "x"), format(key.e, "x")]}
+    }
+    cfg = Obj(host="http://router.invalid", username="admin",
+              password="secret", tls_skip_verify=False, timeout_seconds=30,
+              password_key_pin="00" * 32, auth_key_pin=None)
+    with patch("tplinkrouterc6u.client.sg.post", return_value=response) as post:
+        provider = TPLinkProvider()
+        run(provider.configure(cfg))
+        with __import__("pytest").raises(Exception, match="pin mismatch"):
+            run(provider.call("get_firmware"))
+    assert post.call_count == 1
+    assert "form=keys" in post.call_args.args[0]
