@@ -4,6 +4,7 @@ Register the Pyvider components on import. All real router calls use the
 existing tplinkrouterc6u protocol implementation, never a second Go client.
 """
 import asyncio
+import inspect
 
 from pyvider.providers import BaseProvider, ProviderMetadata, register_provider
 from pyvider.schema import PvsSchema, a_bool, a_str, s_provider
@@ -29,11 +30,26 @@ class TPLinkProvider(BaseProvider):
         await super().configure(config)
         # This POC intentionally selects SG explicitly until passive-first
         # discovery is upstream. Never call the legacy get_client() detector.
+        # Existing library releases do not expose pinning yet. Do not pass
+        # unsupported pin kwargs, and never silently ignore configured pins.
+        pin_kwargs = {
+            key: str(value) for key in ("password_key_pin", "auth_key_pin")
+            if (value := getattr(config, key, None))
+        }
+        if pin_kwargs and not all(
+            key in inspect.signature(TplinkRouterSG.__init__).parameters
+            for key in pin_kwargs
+        ):
+            raise RuntimeError(
+                "Configured RSA pins require the SG key-pinning library update. "
+                "This provider will not disable pin verification silently."
+            )
         router = TplinkRouterSG(
             config.host, config.password,
             username=config.username,
             verify_ssl=not bool(config.tls_skip_verify),
-            timeout=int(config.timeout_seconds or 30))
+            timeout=int(config.timeout_seconds or 30),
+            **pin_kwargs)
         # Do not evict a router GUI session merely for Terraform configure.
         # Authorize only when the first read/write actually needs the router.
         self.router = router

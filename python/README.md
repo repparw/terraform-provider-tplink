@@ -47,3 +47,19 @@ experimental frozen executable should be treated as GPL-covered distribution
 with the corresponding source and license notices. Do not publish it to a
 registry as an MIT-only binary. Decide the repository license and provide
 full dependency notices before a public release.
+
+## RSA public-key pinning (v1 work in progress)
+
+The provider schema exposes optional `password_key_pin` and `auth_key_pin`
+attributes, corresponding to the Go provider's independently verified RSA
+pre-authentication SPKI fingerprints. The pins must be enrolled over a trusted
+connection. They are intentionally optional; configuring them against a Python
+library without SG pin verification fails closed instead of silently ignoring
+them.
+
+The SG client change is staged in
+[the Python library fork](https://github.com/repparw/TP-Link-Archer-C6U/pull/3).
+**Current dependency tag does not yet contain the SG pinning implementation.**
+Repin to a reviewed new immutable tag, then test correct/mismatched pins
+end-to-end before treating the feature as finished. No router I/O occurs during
+provider configuration.

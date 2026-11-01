@@ -165,3 +165,58 @@ def test_mac_spelling_only_update_does_not_write_router():
     assert new.mac == cfg.mac and new.id == normalized_mac(cfg.mac)
     assert private is None
     fake.call.assert_not_called()
+
+
+def test_provider_exposes_both_rsa_key_pins():
+    from tplink_py.capability import RouterCapability
+    conf = RouterCapability.get_schema_contribution()
+    assert "password_key_pin" in conf
+    assert "auth_key_pin" in conf
+    assert conf["password_key_pin"].optional
+    assert conf["auth_key_pin"].optional
+
+
+def test_pins_fail_closed_when_pinned_library_lacks_support():
+    from tplink_py import TPLinkProvider
+
+    class OldSG:
+        calls = 0
+
+        def __init__(self, host, password, username="admin",
+                     verify_ssl=True, timeout=30):
+            type(self).calls += 1
+
+    cfg = Obj(host="http://router", username="admin", password="secret",
+              tls_skip_verify=False, timeout_seconds=30,
+              password_key_pin="aa" * 32, auth_key_pin=None)
+    with patch("tplink_py.TplinkRouterSG", OldSG):
+        with __import__("pytest").raises(RuntimeError, match="will not disable"):
+            run(TPLinkProvider().configure(cfg))
+    assert OldSG.calls == 0  # no construction or login
+
+
+def test_pins_forwarded_without_login_when_library_supports_them():
+    from tplink_py import TPLinkProvider
+    captured = {}
+
+    class PinnedSG:
+        def __init__(self, host, password, username="admin",
+                     verify_ssl=True, timeout=30,
+                     password_key_pin=None, auth_key_pin=None):
+            captured.update(password_key_pin=password_key_pin,
+                            auth_key_pin=auth_key_pin)
+
+        def authorize(self):
+            raise AssertionError("configure must never log in")
+
+    cfg = Obj(host="http://router", username="admin", password="secret",
+              tls_skip_verify=False, timeout_seconds=30,
+              password_key_pin="aa" * 32, auth_key_pin="bb" * 32)
+    with patch("tplink_py.TplinkRouterSG", PinnedSG):
+        instance = TPLinkProvider()
+        run(instance.configure(cfg))
+    assert captured == {
+        "password_key_pin": "aa" * 32,
+        "auth_key_pin": "bb" * 32,
+    }
+    assert not instance._authenticated

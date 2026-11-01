@@ -16,4 +16,14 @@ class RouterCapability(BaseCapability):
             "password": a_str(required=True, sensitive=True),
             "tls_skip_verify": a_bool(default=False, optional=True),
             "timeout_seconds": a_num(default=30, optional=True),
+            "password_key_pin": a_str(
+                optional=True, description=(
+                    "Optional SHA-256/DER SPKI pin for the password RSA key. "
+                    "Enroll from a trusted connection. A mismatch fails closed."
+                )),
+            "auth_key_pin": a_str(
+                optional=True, description=(
+                    "Optional SHA-256/DER SPKI pin for the session RSA key. "
+                    "Pin both keys to prevent independent key substitution."
+                )),
         }
