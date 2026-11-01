@@ -14,6 +14,21 @@ def main():
         else "terraform-provider-tplink"
     )
     assert binary.is_file(), binary
+    expected_version = os.environ.get("PYVIDER_PROVIDER_VERSION", "0.0.0")
+    version_env = os.environ.copy()
+    # An installed provider must ignore an unrelated runtime environment
+    # override. The frozen build's version comes from its runtime hook.
+    version_env["PYVIDER_PROVIDER_VERSION"] = "99.99.99"
+    reported = subprocess.run(
+        [str(binary), "--tplink-build-version"],
+        env=version_env, text=True, capture_output=True, timeout=60,
+    )
+    if reported.returncode or reported.stdout.strip() != expected_version:
+        raise RuntimeError(
+            "Frozen version mismatch: expected "
+            f"{expected_version!r}, got {reported.stdout.strip()!r}; "
+            f"stderr: {reported.stderr[:2000]}"
+        )
     terraform = shutil.which("terraform")
     assert terraform, "Terraform must be installed by CI"
     with tempfile.TemporaryDirectory(prefix="tplink-schema-") as temp:
