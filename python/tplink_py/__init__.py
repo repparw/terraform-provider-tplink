@@ -5,6 +5,7 @@ existing tplinkrouterc6u protocol implementation, never a second Go client.
 """
 import asyncio
 import inspect
+import os
 
 from pyvider.providers import BaseProvider, ProviderMetadata, register_provider
 from pyvider.schema import PvsSchema, a_bool, a_str, s_provider
@@ -18,7 +19,7 @@ class TPLinkProvider(BaseProvider):
     def __init__(self):
         super().__init__(
             metadata=ProviderMetadata(
-                name="tplink", version="0.0.0", protocol_version="6"))
+                name="tplink", version=os.environ.get("PYVIDER_PROVIDER_VERSION", "0.0.0"), protocol_version="6"))
         self.router = None
         self.lock = asyncio.Lock()
         self._authenticated = False
