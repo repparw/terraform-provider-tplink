@@ -63,8 +63,11 @@ connection. They are intentionally optional; configuring them against a Python
 library without SG pin verification fails closed instead of silently ignoring
 them.
 
-The SG client change is staged in
-[the Python library fork](https://github.com/repparw/TP-Link-Archer-C6U/pull/3).
+The pinned library tag already includes both key checks. A separate,
+unmerged [fork PR #3](https://github.com/repparw/TP-Link-Archer-C6U/pull/3)
+contains an alternative implementation; it is **not** the code installed
+by this provider. The tag and its reviewed commit are checked in CI against
+`dependency-lock.json`.
 **The pinned dependency tag already contains both SG pin verifiers.** Its
 `test/test_sg_key_pins.py` tests are run against that exact tag in provider CI.
 Hardware validation of correctly pinned login and mismatched keys is still

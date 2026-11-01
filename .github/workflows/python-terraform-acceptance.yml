@@ -21,6 +21,7 @@ jobs:
         with:
           terraform_version: '1.17.1'
           terraform_wrapper: false
+      - run: python python/check_dependency_pin.py
       - run: |
           python -m venv python/.venv
           python/.venv/bin/pip install -e './python[test]'

@@ -21,8 +21,9 @@ required-reviewer `publish` environment.
 
 ## Before the first release
 
-1. Stabilize the upstream Python-library dependency and keep its source
-   available. Prefer an immutable reviewed reference; verify the tag's SHA.
+1. Run `python python/check_dependency_pin.py` to confirm the pinned
+   Python-library tag still resolves to the reviewed SHA in
+   `python/dependency-lock.json`. Keep the matching source available.
 2. Validate both optional RSA pins against the installed pinned-library
    tests and, with explicit hardware authorization, the real router. Do not
    hardcode fingerprint values.
