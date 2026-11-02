@@ -115,6 +115,10 @@ class PortForward(BaseResource):
         if not ctx.state or cfg.name != ctx.state.name:
             raise RuntimeError(
                 "Changing a port-forward name requires replacement")
+        # The library updater selects the first matching name. Reject
+        # duplicate names before writing; external UI changes can still race.
+        if await verified_forward(cfg.name) is None:
+            raise RuntimeError("Port forward disappeared before update")
         await provider().call(
             "update_ipv4_port_forward", cfg.name,
             external_port=cfg.external_port,
