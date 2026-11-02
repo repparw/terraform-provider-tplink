@@ -28,7 +28,7 @@ required-reviewer `publish` environment.
 2. Preserve the successful hardware pinning test evidence. Recheck pinning
    after any router firmware, dependency or key change; never hardcode values.
 3. Update `docs/` and `examples/` to match the actual provider schema.
-4. Review the CI-produced, per-platform `*_source.zip` archives containing
+4. Review the CI-produced, per-platform `tplink-provider-sources_*.zip` archives containing
    the provider source, exact pinned router-library source, transitive Python
    dependency source distributions, license files and `DEPENDENCIES.json`.
    Missing source distributions or license evidence fail packaging. Verify
@@ -64,9 +64,9 @@ Expected assets for 0.1.0:
 - `terraform-provider-tplink_0.1.0_linux_amd64.zip`
 - `terraform-provider-tplink_0.1.0_darwin_arm64.zip`
 - `terraform-provider-tplink_0.1.0_windows_amd64.zip`
-- `terraform-provider-tplink_0.1.0_linux_amd64_source.zip`
-- `terraform-provider-tplink_0.1.0_darwin_arm64_source.zip`
-- `terraform-provider-tplink_0.1.0_windows_amd64_source.zip`
+- `tplink-provider-sources_0.1.0_linux_amd64.zip`
+- `tplink-provider-sources_0.1.0_darwin_arm64.zip`
+- `tplink-provider-sources_0.1.0_windows_amd64.zip`
 - `terraform-provider-tplink_0.1.0_manifest.json` (protocol 6.0)
 - `terraform-provider-tplink_0.1.0_SHA256SUMS`
 - `terraform-provider-tplink_0.1.0_SHA256SUMS.sig` (binary detached GPG)
