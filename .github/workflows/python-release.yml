@@ -2,7 +2,7 @@ name: Release Python provider
 
 on:
   push:
-    tags: ['pyprovider-v[0-9]*']
+    tags: ['v[0-9]*']
 
 permissions:
   contents: read
@@ -42,11 +42,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#pyprovider-v}"
+          VERSION="${GITHUB_REF_NAME#v}"
           export PYVIDER_PROVIDER_VERSION="$VERSION"
           python python/build_frozen.py
           python python/validate_frozen.py
           python python/package_release.py "$VERSION" "${{ matrix.platform }}"
+          python python/collect_release_sources.py "$VERSION" "${{ matrix.platform }}"
           python -m pytest -q python/tests/test_release.py
           python python/validate_registry_package.py "$VERSION" "${{ matrix.platform }}"
       - uses: actions/upload-artifact@v4
@@ -75,12 +76,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#pyprovider-v}"
+          VERSION="${GITHUB_REF_NAME#v}"
           for PLATFORM in linux_amd64 darwin_arm64 windows_amd64; do
             test -s "terraform-provider-tplink_${VERSION}_${PLATFORM}.zip"
+            test -s "terraform-provider-tplink_${VERSION}_${PLATFORM}_source.zip"
           done
           test -s "terraform-provider-tplink_${VERSION}_manifest.json"
-          test "$(find . -maxdepth 1 -name 'terraform-provider-tplink_*.zip' | wc -l)" -eq 3
+          test "$(find . -maxdepth 1 -name 'terraform-provider-tplink_*.zip' | wc -l)" -eq 6
           python -c 'import json,sys; x=json.load(open(sys.argv[1])); assert x == {"version":1,"metadata":{"protocol_versions":["6.0"]}}' "terraform-provider-tplink_${VERSION}_manifest.json"
       - name: Require signing credentials
         env:
@@ -102,7 +104,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#pyprovider-v}"
+          VERSION="${GITHUB_REF_NAME#v}"
           sha256sum "terraform-provider-tplink_${VERSION}_"*.zip \
             "terraform-provider-tplink_${VERSION}_manifest.json" \
             > "terraform-provider-tplink_${VERSION}_SHA256SUMS"
@@ -114,7 +116,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#pyprovider-v}"
+          VERSION="${GITHUB_REF_NAME#v}"
           gpg --batch --local-user "$GPG_FINGERPRINT" \
             --output "terraform-provider-tplink_${VERSION}_SHA256SUMS.sig" \
             --detach-sign "terraform-provider-tplink_${VERSION}_SHA256SUMS"
@@ -127,7 +129,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#pyprovider-v}"
+          VERSION="${GITHUB_REF_NAME#v}"
           gh release create "$GITHUB_REF_NAME" --title "v$VERSION" \
             --notes "Python provider release; see RELEASING.md for verification steps." \
             "terraform-provider-tplink_${VERSION}_"*.zip \
