@@ -1,4 +1,4 @@
-"""Experimental Python-only TP-Link provider.
+"""Python-only TP-Link provider.
 
 Register the Pyvider components on import. All real router calls use the
 existing tplinkrouterc6u protocol implementation, never a second Go client.
@@ -34,7 +34,7 @@ class TPLinkProvider(BaseProvider):
         await super().configure(config)
         # This POC intentionally selects SG explicitly until passive-first
         # discovery is upstream. Never call the legacy get_client() detector.
-        # The pinned fork tag supports these pre-auth key checks. Keep the
+        # The pinned fork commit supports these pre-auth key checks. Keep the
         # guard for incompatible dependency changes and fail closed.
         pin_kwargs = {
             key: str(value) for key in ("password_key_pin", "auth_key_pin")
