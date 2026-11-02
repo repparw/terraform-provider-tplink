@@ -2,14 +2,14 @@
 
 This directory contains the intended Python provider implementation
 under GPL-3.0-or-later. It depends on the GPL-3.0-or-later
-`tplinkrouterc6u` router library, pinned by the immutable `b40ab375b51da06b1d87bb318513c1e262770fdc` commit in `pyproject.toml` (SHA `b40ab375b51da06b1d87bb318513c1e262770fdc`).
+`tplinkrouterc6u` router library, pinned by the immutable `588f74f57a35e3818deb40825c8788d0240a2f62` commit in `pyproject.toml` (SHA `588f74f57a35e3818deb40825c8788d0240a2f62`).
 
 The repository's existing Go implementation retains its own MIT license.
 Do not advertise a frozen Python distribution as MIT-licensed.
 
 The corresponding Python provider source is under `python/` in this repository.
 The pinned Python router library source is available at:
-https://github.com/repparw/TP-Link-Archer-C6U/tree/b40ab375b51da06b1d87bb318513c1e262770fdc
+https://github.com/repparw/TP-Link-Archer-C6U/tree/588f74f57a35e3818deb40825c8788d0240a2f62
 
 Pyvider itself is Apache-2.0. Other third-party dependencies retain their own licenses. The release process
 builds per-platform corresponding-source ZIPs with dependency source archives,
