@@ -18,16 +18,16 @@ Current proof:
   persistent mock router, without physical router changes
 - Terraform schema handshake for the Python development wrapper and frozen
   Linux binary; packaged Windows/macOS/Linux schema tests have passed in CI
-- the pinned fork tag adds hardware-tested in-place DHCP updates; replace
+- the pinned fork tag adds hardware-tested in-place DHCP updates and RSA key checks; replace
   the Git dependency with a released library once upstream accepts it
 
 Hardware verification status: full read parity (five data sources, compared
 field-by-field against the Go provider) and a complete write lifecycle
 (create/update/import/destroy of disposable rows) executed on the AX23 v2;
-session-expiry re-authentication covered by unit tests. NixOS frozen-executable
+session-expiry handling covered by unit tests. Transport timeouts do not trigger write replay. NixOS frozen-executable
 execution requires `programs.nix-ld.enable = true;` — the only runtime
-requirement. Remaining release work: cross-platform CI packaging checks and
-the release-signing pipeline (`RELEASING.md`).
+requirement. Remaining release work: transitive source/license archive verification, signing configuration,
+and registry registration (`RELEASING.md`).
 
 This prototype explicitly selects `TplinkRouterSG` instead of the legacy
 auto-detect routine to avoid credential-probing across router families.
@@ -48,13 +48,13 @@ single executable tested through the full provider installation lifecycle.
 
 ## Licensing and distribution
 
-The provider currently depends on a GPL-3.0-or-later Python library. The
-experimental frozen executable should be treated as GPL-covered distribution
-with the corresponding source and license notices. Do not publish it to a
-registry as an MIT-only binary. Decide the repository license and provide
-full dependency notices before a public release.
+The frozen Python executable is GPL-3.0-or-later covered, unlike the separate
+MIT-licensed Go reference implementation. The packaging workflow gathers a
+source archive and license inventory for each platform. Release publication
+is blocked when a dependency source archive cannot be obtained; review the
+resulting archive and license evidence before the first public release.
 
-## RSA public-key pinning (v1 work in progress)
+## RSA public-key pinning
 
 The provider schema exposes optional `password_key_pin` and `auth_key_pin`
 attributes, corresponding to the Go provider's independently verified RSA
@@ -70,6 +70,6 @@ by this provider. The tag and its reviewed commit are checked in CI against
 `dependency-lock.json`.
 **The pinned dependency tag already contains both SG pin verifiers.** Its
 `test/test_sg_key_pins.py` tests are run against that exact tag in provider CI.
-Hardware validation of correctly pinned login and mismatched keys is still
-required before claiming the pinning feature has been validated on AX23.
+Correctly pinned login and mismatched password/authentication pins were checked
+on the AX23. In each mismatch case authorization failed before session setup.
 No router I/O occurs during provider configuration.
