@@ -42,8 +42,8 @@ pip install -e './python[test]'
 pytest python/tests
 ```
 
-Do **not** use the main repository's existing GoReleaser pipeline to package
-this experiment. Any final Python registry package must be a self-contained
+Do **not** use the Go release reference pipeline to package
+the Python provider. Any final Python registry package must be a self-contained
 single executable tested through the full provider installation lifecycle.
 
 ## Licensing and distribution
@@ -66,10 +66,10 @@ them.
 The pinned library commit includes both key checks and explicit SG session-expiry errors. A separate,
 unmerged [fork PR #3](https://github.com/repparw/TP-Link-Archer-C6U/pull/3)
 contains an alternative implementation; it is **not** the code installed
-by this provider. The tag and its reviewed commit are checked in CI against
+by this provider. The immutable commit and its branch reachability are checked in CI against
 `dependency-lock.json`.
-**The pinned dependency tag already contains both SG pin verifiers.** Its
-`test/test_sg_key_pins.py` tests are run against that exact tag in provider CI.
+**The pinned dependency commit contains both SG pin verifiers.** Its
+`test/test_sg_key_pins.py` tests are run against that exact commit in provider CI.
 Correctly pinned login and mismatched password/authentication pins were checked
 on the AX23. In each mismatch case authorization failed before session setup.
 No router I/O occurs during provider configuration.
