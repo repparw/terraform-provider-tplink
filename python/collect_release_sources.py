@@ -6,8 +6,10 @@ Run on each target OS because the frozen dependency set may differ by OS.
 """
 from importlib import metadata
 import json
+from urllib.request import urlopen
 from pathlib import Path
 import re
+import hashlib
 import subprocess
 import sys
 import tempfile
@@ -48,6 +50,23 @@ def dependencies():
     if "tplinkrouterc6u" not in found or "pyvider" not in found:
         raise RuntimeError("Provider dependencies missing from installed graph")
     return found
+
+
+def pypi_source(name, version):
+    """Fetch source distribution bytes and check the PyPI-published SHA-256."""
+    url = f"https://pypi.org/pypi/{name}/{version}/json"
+    with urlopen(url, timeout=30) as response:
+        release = json.load(response)
+    candidates = [item for item in release["urls"]
+                  if item.get("packagetype") == "sdist"]
+    if len(candidates) != 1:
+        raise RuntimeError(f"Expected exactly one sdist for {name}=={version}")
+    artifact = candidates[0]
+    with urlopen(artifact["url"], timeout=120) as response:
+        data = response.read()
+    if hashlib.sha256(data).hexdigest() != artifact["digests"]["sha256"]:
+        raise RuntimeError(f"Source distribution hash mismatch: {name}")
+    return artifact["filename"], data
 
 
 def license_files(distribution):
@@ -109,19 +128,12 @@ def collect(version, platform, root=ROOT):
                 elif name == "tplinkrouterc6u":
                     row["source"] = "sources/tplinkrouterc6u-pinned.tar.gz"
                 else:
-                    source_dir = temp / name
-                    source_dir.mkdir()
-                    command(sys.executable, "-m", "pip", "download",
-                            "--no-deps", "--no-binary=:all:",
-                            "--dest", source_dir,
-                            f"{row['name']}=={version_installed}")
-                    artifacts = [p for p in source_dir.iterdir() if p.is_file()]
-                    if len(artifacts) != 1 or not artifacts[0].name.endswith(
-                            (".tar.gz", ".tar.bz2", ".tar.xz", ".zip")):
-                        raise RuntimeError(f"Missing source distribution: {name}")
-                    source = artifacts[0]
-                    row["source"] = f"sources/{source.name}"
-                    archive.write(source, row["source"])
+                    filename, data = pypi_source(row["name"], version_installed)
+                    if not filename.endswith((".tar.gz", ".tar.bz2", ".tar.xz", ".zip")):
+                        raise RuntimeError(f"Unexpected source format for {name}")
+                    row["source"] = f"sources/{filename}"
+                    row["source_sha256"] = hashlib.sha256(data).hexdigest()
+                    archive.writestr(row["source"], data)
                 if not row["license_files"] and not row["license"]:
                     raise RuntimeError(f"No license evidence for {name}")
                 inventory.append(row)
