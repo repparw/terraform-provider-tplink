@@ -1,32 +1,46 @@
 # terraform-provider-tplink
 
-Terraform / OpenTofu provider for the **TP-Link Archer AX23 v2.0,
-firmware 1.1.2 Build 20250814**. Other hardware and firmware versions are
-not yet validated.
+Terraform and OpenTofu provider for the **TP-Link Archer AX23 v2.0**,
+verified with firmware **1.1.2 Build 20250814**. Other models and firmware
+versions have not been validated on hardware.
 
-The intended v0.1.0 release is implemented in [Python/Pyvider](python/)
-and distributed as frozen executables, so end users do not need Python.
-The previous [Go implementation](main.go) remains an MIT-licensed reference
-client until retirement. The Python release is GPL-3.0-or-later due to its
-router-library dependency. See [PROTOCOL.md](PROTOCOL.md) for the verified
-wire protocol and [RELEASING.md](RELEASING.md) for publication steps.
+The provider is implemented in **Python/Pyvider** using a pinned revision of
+the GPL-licensed `tplinkrouterc6u` library. Releases package frozen executables
+for Linux, macOS and Windows. End users do not need a Python installation.
 
-## Requirements
+The earlier Go implementation was retired before the first public release.
+It remains available in Git history under its original MIT license.
 
-- Terraform >= 1.6 / OpenTofu >= 1.7
-- Network access to the router's HTTP management interface
-  (this firmware generation serves local management over plain HTTP; HTTPS
-  access is blocked by the router itself)
+## Features
 
-## Provider installation (development)
+- Data sources: `tplink_firmware`, `tplink_router`, `tplink_devices`,
+  `tplink_dhcp_reservations`, `tplink_port_forwards`.
+- Managed resources: `tplink_dhcp_reservation` (identified by MAC address)
+  and `tplink_port_forward` (identified by rule name).
+- Import, drift detection, read-back verification, and replacement when a
+  resource's identity changes.
+- Optional RSA public-key pinning via `password_key_pin` and `auth_key_pin`.
+
+## Installation
+
+**v0.1.0 has not been published yet.** Do not assume either registry source
+is available until a signed release and registry registration are complete.
+
+When registered, a configuration can use:
 
 ```hcl
 terraform {
   required_providers {
     tplink = {
       source = "registry.opentofu.org/repparw/tplink"
+      version = "~> 0.1"
     }
   }
+}
+
+variable "router_password" {
+  type      = string
+  sensitive = true
 }
 
 provider "tplink" {
@@ -35,112 +49,15 @@ provider "tplink" {
 }
 ```
 
-To test the Go reference client locally (not the v0.1.0 Python release),
-build and install via a plugin directory (verified with OpenTofu 1.13):
+Use `registry.terraform.io/repparw/tplink` when publishing through
+Terraform Registry instead. The two registries are registered separately.
+The frozen Linux executable requires a compatible glibc runtime. NixOS may
+need `programs.nix-ld.enable = true;` and suitable dynamic libraries.
 
-```sh
-go build -o terraform-provider-tplink .
-mkdir -p ~/.tofu.d/plugins/registry.opentofu.org/repparw/tplink/0.1.0/linux_amd64
-cp terraform-provider-tplink ~/.tofu.d/plugins/registry.opentofu.org/repparw/tplink/0.1.0/linux_amd64/
-tofu init -plugin-dir=~/.tofu.d/plugins
-```
-
-`terraform` works the same way with `~/.terraform.d/plugins` and
-`terraform init -plugin-dir=...`. The Python release uses the signed
-registry ZIPs described in [RELEASING.md](RELEASING.md). Neither registry
-address should be assumed published until registration is complete.
-
-## Data sources (read-only)
-
-| Data source | Description |
-| --- | --- |
-| `tplink_firmware` | Model, hardware revision, firmware version |
-| `tplink_router` | WAN/LAN status, uptime, CPU/memory, client counts |
-| `tplink_devices` | Connected-device inventory (wired, host, guest, IoT) |
-| `tplink_dhcp_reservations` | All static DHCP assignments |
-| `tplink_port_forwards` | All port-forwarding (virtual server) rules |
-
-```hcl
-data "tplink_firmware" "current" {}
-output "firmware" { value = data.tplink_firmware.current }
-
-data "tplink_port_forwards" "all" {}
-output "forwarded" { value = data.tplink_port_forwards.all.rules }
-```
-
-See [examples/](examples/) for complete configurations.
-
-## Resources
-
-### `tplink_dhcp_reservation`
-
-A static DHCP address assignment, identified by the device **MAC address**
-(import ID: the MAC). The provider accepts colon, dash or Cisco-dotted MACs,
-preserving the configured spelling in Terraform state. The router identity and
-resource ID are normalized.
-
-```hcl
-resource "tplink_dhcp_reservation" "printer" {
-  mac      = "AA-BB-CC-DD-EE-FF"
-  ip       = "192.168.0.50"
-  hostname = "printer"
-  enabled  = true
-}
-```
-
-### `tplink_port_forward`
-
-A port forwarding (virtual server) rule, identified by its **name**
-(import ID: the name).
-
-```hcl
-resource "tplink_port_forward" "web" {
-  name          = "web"
-  ip            = "192.168.0.4"
-  external_port = "443"
-  internal_port = "443"
-  protocol      = "TCP"
-  enabled       = true
-}
-```
-
-Import existing configuration:
-
-```sh
-tofu import tplink_port_forward.web "https"
-tofu import tplink_dhcp_reservation.pi "2C-CF-67-00-4F-47"
-```
-
-## Operational notes (read before applying)
-
-- **Single admin session.** The router allows exactly one admin login;
-  provider runs evict an interactive web-UI session and vice versa. The Python
-  provider retries only explicit session-expiry errors; uncertain network
-  timeouts are surfaced rather than replaying possible writes.
-- **Lockout.** Roughly 12 failed logins trigger a ~2 h lockout. The provider
-  never retries failed logins. Keep the password in TF_VAR_router_password,
-  a secret manager, or an interactive prompt — never in git.
-- **HTTP-only management.** The login flow travels over plain HTTP by
-  design of this firmware; the password's confidentiality rests on the
-  RSA key exchange. Do not expose the management interface to untrusted
-  LAN segments.
-- **Write verification.** Every create/update reads the row back and checks
-  all known planned values, not just the identity.
-- **Concurrency.** Multi-request table changes are serialized within the provider
-  process. Other processes or a web-UI session can still race with an apply.
-- **Cancellation.** The Go reference client propagates Terraform cancellation
-  to router HTTP requests. Do not assume equivalent cancellation behavior in
-  the Python client without separate verification.
-- **Verified hardware.** The full managed-resource write cycle (create →
-  update → destroy of a disposable disabled reservation and port forward,
-  read-back verified after each step) and all read operations were executed
-  live through OpenTofu against the AX23 v2 on 2026-10-29, with the original
-  configuration verified intact afterwards. The protocol handshake is
-  additionally covered by the mock-router conformance test suite.
+See [RELEASING.md](RELEASING.md) for the full release procedure and
+[docs/](docs/) for provider, resource and data-source schemas.
 
 ## Development
-
-For the Python release candidate:
 
 ```sh
 python -m venv .venv
@@ -149,17 +66,54 @@ pip install -e './python[test]'
 pytest -q python/tests
 ```
 
-For the separate Go reference implementation:
+Frozen builds, registry package checks and an offline Terraform lifecycle
+test run in GitHub Actions. See [python/README.md](python/README.md).
+
+### Read-only router inventory
+
+The old `cmd/tfinventory` helper is replaced by
+`python -m tplink_py.inventory`. It produces
+`inventory.auto.tfvars` and `imports.tf` for the router's existing DHCP
+reservations and port forwards. Both files contain private LAN information.
 
 ```sh
-go test ./...
-go run ./cmd/livescan  # read-only; requires authorized router access
-gofmt -l . && go vet ./...
+export TPLINK_PASSWORD='...'
+python -m tplink_py.inventory --dry-run --dir /path/to/nix/infra/router
+python -m tplink_py.inventory --dir /path/to/nix/infra/router
 ```
+
+The command connects to the router for reads only. It can optionally verify
+`TPLINK_PASSWORD_KEY_PIN` and `TPLINK_AUTH_KEY_PIN`. Check generated files,
+plan output, and existing OpenTofu state before any apply, especially after
+out-of-band household changes.
+
+## Router safety
+
+The router accepts only one active admin session, so connecting the provider
+can evict an interactive router UI session. Repeated incorrect logins can
+trigger a long lockout. The provider does not retry failed credentials.
+
+The verified AX23 firmware exposes its management interface over HTTP.
+Use it only on a trusted local network and enroll RSA key pins over a trusted
+connection. The encrypted application payload does not make HTTP equivalent
+to TLS.
+
+Terraform serializes router actions within one provider process, but it
+cannot prevent external changes from another router client. A network timeout
+may occur after a write succeeds. The provider only reauthenticates and
+retries when the router explicitly rejects an expired session.
+
+## References
+
+- [Provider implementation and tests](python/)
+- [Router SG protocol findings](PROTOCOL.md)
+- [Architecture and migration decision](ARCHITECTURE.md)
+- [OpenTofu router inventory](https://github.com/repparw/nix/tree/main/infra/router)
 
 ## License
 
-The Python provider and frozen distribution are **GPL-3.0-or-later**.
-The separate Go reference implementation remains **MIT**.
-See [python/NOTICE.md](python/NOTICE.md) and [RELEASING.md](RELEASING.md)
-for third-party source and license distribution requirements.
+**GPL-3.0-or-later** for the active repository and Python provider. The
+frozen distribution includes GPL notices and matching dependency source
+archives. The retired Go source remains available in Git history under
+its earlier MIT terms. See [LICENSE](LICENSE), [python/NOTICE.md](python/NOTICE.md)
+and [RELEASING.md](RELEASING.md).

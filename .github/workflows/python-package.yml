@@ -69,7 +69,7 @@ jobs:
         run: python python/validate_registry_package.py 0.1.0 "${{ matrix.platform }}"
       - uses: actions/upload-artifact@v4
         with:
-          name: tplink-python-${{ matrix.platform }}-experiment
+          name: tplink-python-${{ matrix.platform }}
           path: |
             dist/python/terraform-provider-tplink*
             python/LICENSE

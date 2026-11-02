@@ -1,64 +1,54 @@
-# Architecture decision: native Go client vs Python sidecar
+# Provider architecture
 
-Date: 2026-10-26. Status: accepted.
+Decision date: 2026-11-02. Status: accepted.
 
-## Context
+## Current implementation
 
-This provider manages TP-Link home routers on the new-generation (SG-hardened)
-web UI — verified against an Archer AX23 v2.0, firmware 1.1.2 Build 20250814
-(SG_L1_S2 certification). The SG protocol and AX23 v2 hardware findings are documented in
-[PROTOCOL.md](PROTOCOL.md). The Python library's corresponding port-forward
-implementation is tracked in upstream PR
-[AlexandrErohin/TP-Link-Archer-C6U#248](https://github.com/AlexandrErohin/TP-Link-Archer-C6U/pull/248).
+The sole implementation is a Python provider using **Pyvider 0.8.1** for
+Terraform Plugin Protocol 6. Its router backend is a pinned revision of the
+GPL-3.0-or-later `tplinkrouterc6u` SG client. It supports the Archer AX23
+v2.0 on firmware 1.1.2 Build 20250814. The provider implements two managed
+resources and five data sources. It does not implement a separate wire
+protocol, process sidecar or Go fallback.
 
-Two implementation shapes were compared:
+The provider serializes access to one authenticated router session, performs
+read-back verification after writes, and distinguishes explicit router
+session expiry from uncertain network errors. Optional RSA public-key pins
+reject substituted authentication keys before login.
 
-| | A. Native Go protocol implementation | B. Go provider + Python sidecar (wrapping `tplinkrouterc6u`) |
-| --- | --- | --- |
-| Deployment | Single static binary, no runtime dependencies | Requires Python 3 + `tplinkrouterc6u` installed and reachable; either spawned by the provider (fragile lifecycle inside Terraform, PATH/venv management on CI and workstations) or run out-of-band (breaks `tofu plan/apply` self-containment) |
-| Session handling | Full control: one session per run, re-auth on `timeout`, mutex serialization | Session state lives in the sidecar process; Terraform cannot own its lifecycle cleanly |
-| Latency | Direct, ~50-100 ms per call | Extra hop + process management per operation |
-| Crypto correctness risk | Must port SHA256/RSA-v1.5/OAEP/AES-CBC/HMAC-SHA256 exactly (mitigated: byte-level mock-router conformance test + live verification; upstream library's SG client serves as reference) | Inherits the battle-tested Python crypto for free |
-| Upstream fix inheritance | Not automatic — protocol changes require porting | Automatic via `pip` upgrades |
-| Maintenance | Protocol surface we implement is small (login + ~10 forms); firmware generations beyond SG can be added behind the same client interface | Track upstream's ~25 client families, but only through its API |
-| Licensing | Clean: protocol reimplementation from public documentation; provider stays MIT/Apache-2.0, no GPL obligations | `tplinkrouterc6u` is **GPL-3.0**: a provider that *links* it would have to be GPL-3.0; a separate-process sidecar avoids linking but ships and depends on GPL code at runtime |
-| Registry publishing | Straightforward (goreleaser, static binary) | Awkward (sidecar distribution not covered by the Terraform/OpenTofu provider protocol) |
+The CLI is frozen with PyInstaller separately on Linux amd64, macOS arm64 and
+Windows amd64. Native release archives are tested via offline Terraform
+installation and schema introspection. The source release includes dependency
+sources and attribution. NixOS requires a compatible glibc loader (for
+example `nix-ld`).
 
-## Decision
+## Why Go was retired
 
-**Option A — native Go.** The decisive factors are deployment simplicity
-(Terraform/OpenTofu providers must be single binaries to work well across
-workstations, CI, and the registry) and licensing (GPL-3.0 avoidance without
-process-boundary tricks). The porting risk is contained because:
+The earlier native Go client was a useful independent protocol verification
+and supported initial router adoption. However, maintaining a separate SG
+crypto implementation, the equivalent resource schema, and fixes already
+present in the Python router library duplicated work. The Python version was
+verified on the target router for reads, DHCP reservation and port-forward
+lifecycles, and RSA key-pinning. It can be shipped without requiring users to
+install Python or a separate service. The repository therefore retired its
+Go client, Go tools and Go CI before the first public release.
 
-1. The wire format is fully documented from the router's own JS bundles and
-   cross-checked against three independent implementations (the upstream
-   Python library's SG client, the `archer-router-mcp` byte-exact auth-flow
-   spec, and live packet behavior of the AX23 v2).
-2. `internal/client/mockrouter_test.go` implements the **router's side** of
-   the protocol (real RSA keypairs, OAEP signature decryption, HMAC
-   verification, AES envelope) so the client is tested against an independent
-   implementation of the wire format, not against itself.
-3. `cmd/livescan` performs a read-only live check against real hardware and
-   was run successfully against the AX23 v2 (2026-10-26: login, firmware,
-   status, devices, 12 DHCP reservations, 2 port forwards). On 2026-10-29,
-   with explicit approval, the full managed-resource write cycle
-   (create → update → destroy of a disposable disabled reservation and port
-   forward, read-back verified after each step) was executed through
-   OpenTofu against the same router; the original configuration was
-   verified intact afterwards.
+The old Go commits remain in Git history under their original MIT license.
+The current distribution is **GPL-3.0-or-later**, consistent with its linked
+router library. Previous MIT grants are unaffected.
 
-## Non-gotheses / consequences
+## State and operational constraints
 
-- Other firmware generations (classic MD5-era c6u, simplified V1_11, or the
-  512-bit-auth variants) are **not** implemented; the client fails with a
-  clear error if the handshake does not look like SG. Adding a generation
-  means a new auth strategy behind the same `Client` interface.
-- When upstream ships crypto fixes for future firmware, they must be ported;
-  the upstream PR remains the reference implementation.
-- The provider keeps one router session per Terraform run (the router allows
-  exactly one admin session) and re-authenticates transparently on
-  `timeout`/`user conflict` responses. It never retries failed logins
-  (≈12 failures trigger a ~2 h lockout).
-- Writes always read back after the fact (the router accepts unknown params
-  silently), which doubles as drift detection on the next refresh.
+- DHCP reservation identity is the normalized MAC address.
+- Port-forward identity is the rule name.
+- The Python inventory CLI generates Terraform variable and import files
+  without changing router configuration.
+- The router permits only one administrative session and does not offer
+  transactional multi-row writes.
+- Router state must be reconciled after ambiguous write outcomes. Do not
+  replay network timeouts.
+- The verified implementation is restricted to AX23 v2.0 until other hardware
+  and firmware revisions receive actual tests.
+
+See [PROTOCOL.md](PROTOCOL.md) for historical protocol observations and
+[RELEASING.md](RELEASING.md) for release verification requirements.

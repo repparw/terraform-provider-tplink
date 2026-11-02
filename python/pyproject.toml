@@ -1,7 +1,7 @@
 [project]
 name = "terraform-provider-tplink-python"
 version = "0.0.0"
-description = "Experimental Python backend for TP-Link Terraform provider"
+description = "TP-Link Terraform/OpenTofu provider implemented with Pyvider"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.11"
 dependencies = [

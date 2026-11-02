@@ -5,8 +5,7 @@ Verified on **Archer AX23 v2.0**, firmware **1.1.2 Build 20250814**
 Initial read-only investigation: **2026-10-25**; Go client and live writes
 verified **2026-10-26–29**.
 
-This document owns the reusable protocol findings. For the decisions behind
-using native Go instead of a Python sidecar, see [ARCHITECTURE.md](ARCHITECTURE.md).
+This document owns the reusable protocol findings. For the current Python/Pyvider implementation decision, see [ARCHITECTURE.md](ARCHITECTURE.md).
 For router-specific declarative configuration, state and backups, see
 [`repparw/nix/infra/router`](https://github.com/repparw/nix/tree/main/infra/router).
 
@@ -20,8 +19,7 @@ supported; firmware upgrades should be followed by a read-only check and a
 `tofu plan` before any write.
 
 The router's UI JavaScript exposed roughly **148 API forms** during the original
-investigation. This is **not** the provider's supported API surface: the Go
-client intentionally implements only the methods required for its read-only
+investigation. This is **not** the provider's supported API surface: the current provider intentionally exposes only the methods required for its read-only
 data sources and two managed resources. Do not assume the presence of a
 discovered router endpoint makes it writable via this provider.
 
@@ -47,10 +45,9 @@ discovered router endpoint makes it writable via this provider.
   never blindly retry a bad password. Expired sessions and user-conflict
   responses are handled separately from failed authentication.
 
-The byte-level behavior is implemented in
-[`internal/client/client.go`](internal/client/client.go) and exercised by
-[`internal/client/mockrouter_test.go`](internal/client/mockrouter_test.go),
-which independently implements the router side of the handshake.
+The Python provider uses a pinned revision of the `tplinkrouterc6u` SG client.
+The former Go mock router and its protocol tests remain accessible through Git
+history for independent reference.
 
 ## Implemented forms
 
@@ -79,7 +76,7 @@ Reservations are identified by **MAC address** and port forwards by
 **rule name**. Operations using a table index require loading the current
 table before choosing an index. Router firmware may accept unknown write
 parameters without reporting an error, so the provider **reads back every
-create/update** and checks the resulting values. The client serializes table
+create/update** and checks the resulting values. The provider serializes table
 mutations within a provider process; concurrent management outside it can
 invalidate row positions, so table writes are not transactional across clients.
 The mock router models remove as a key-and-index check and rejects a stale
@@ -98,8 +95,8 @@ refresh and re-plan before trying again.
   and additional diagnostic endpoints. The original probe exposed internal
   SSIDs, hostnames, local IPs, and MAC addresses despite redacting passwords
   and WAN addresses. Its output is private network inventory, not suitable
-  for publication. The Go repository instead offers `cmd/livescan` for
-  read-only hardware checks.
+  for publication. Private router inventory must never be included in a public repository.
+  The Python read-only inventory command is `python -m tplink_py.inventory`.
 - **2026-10-26:** native Go client login and read operations verified on the
   AX23 v2.
 - **2026-10-29:** separately authorized, *disabled*, disposable reservation
@@ -110,8 +107,8 @@ refresh and re-plan before trying again.
 - The upstream Python port-forward implementation was separately verified on
   the same model in
   [`TP-Link-Archer-C6U#248`](https://github.com/AlexandrErohin/TP-Link-Archer-C6U/pull/248).
-  The Python library is GPL-3.0; the Go implementation does not incorporate
-  its source code.
+  The Python router library and current provider are GPL-3.0-or-later covered.
+  The retired Go client remains available under its original MIT license in Git history.
 - **Not verified:** Wi-Fi writes, other firmware generations, broad endpoint
   CRUD beyond the two resources, or atomic rollback on multi-row failures.
 

@@ -1,6 +1,6 @@
 # Python provider release checklist
 
-The Python/Pyvider implementation is the intended v0.1.0 release (GPL-3.0-or-later).
+The Python/Pyvider implementation is the sole v0.1.0 release candidate (GPL-3.0-or-later). The Go provider and Go CI were retired before the first public release.
 **Do not tag, merge, or publish while PR #8 is draft.** A GitHub release is
 separate from registry registration, and publishing is restricted by the
 required-reviewer `publish` environment.
@@ -27,13 +27,13 @@ required-reviewer `publish` environment.
    `python/dependency-lock.json`. Keep the matching source available.
 2. Preserve the successful hardware pinning test evidence. Recheck pinning
    after any router firmware, dependency or key change; never hardcode values.
-3. Update `docs/` and `examples/` to match the actual provider schema.
+3. Keep `docs/` and `examples/` in sync with the Python provider schema and the new Python inventory generator.
 4. Review the CI-produced, per-platform `tplink-provider-sources_*.zip` archives containing
    the provider source, exact pinned router-library source, transitive Python
    dependency source distributions, license files and `DEPENDENCIES.json`.
    Missing source distributions or license evidence fail packaging. Verify
    that the inventory actually covers the frozen binary before approving
-   the `publish` job. The Python release is GPL-covered; Go remains MIT.
+   the `publish` job. The repository is now GPL-3.0-or-later. Historical Go versions remain available under their original MIT grant in Git history.
 5. Review CI on PR #8: unit tests, Terraform simulated CRUD/import/replace,
    and Linux/macOS/Windows frozen-binary schema and archive-format checks.
 6. Test published-package installation with Terraform and OpenTofu using
@@ -83,7 +83,7 @@ from either registry.
 
 ## Documentation and scope
 
-The Python provider's primary development identity is `tplink`. The
+The provider's identity is `tplink`. The
 registry source addresses `registry.terraform.io/repparw/tplink` and
 `registry.opentofu.org/repparw/tplink` are independently registered.
 Neither address has been validated as published yet. Only AX23 v2.0

@@ -1,16 +1,16 @@
 # Python provider (the v0.1.0 release implementation)
 
 This is the provider being promoted to v0.1.0: a Python/Pyvider implementation
-with full schema parity and hardware-verified reads and writes against the
+with the original provider's schema and hardware-verified reads and writes against the
 **Archer AX23 v2.0 (firmware 1.1.2 Build 20250814)** — the only advertised
-target. The Go implementation on main remains the reference client until this
-passes the final release checks, after which it is retired.
+target. The original Go implementation has been retired and is available
+only through Git history.
 
 It uses Pyvider 0.8.1 for Terraform protocol v6 and the reviewed tplinkrouterc6u fork commit `588f74f57a35e3818deb40825c8788d0240a2f62`
 for the TP-Link SG router protocol. No sidecar or duplicated router crypto.
 
 Current proof:
-- full seven-resource/data-source schema parity with the Go provider
+- seven resources/data sources with compatible schemas for migrating existing state
 - `tplink_dhcp_reservation` and `tplink_port_forward` CRUD adapters
 - read-only `tplink_firmware`, `tplink_router`, `tplink_devices`,
   `tplink_dhcp_reservations`, and `tplink_port_forwards`
@@ -42,14 +42,13 @@ pip install -e './python[test]'
 pytest python/tests
 ```
 
-Do **not** use the Go release reference pipeline to package
-the Python provider. Any final Python registry package must be a self-contained
+The Go build and release workflow has been removed. Any final Python registry package must be a self-contained
 single executable tested through the full provider installation lifecycle.
 
 ## Licensing and distribution
 
-The frozen Python executable is GPL-3.0-or-later covered, unlike the separate
-MIT-licensed Go reference implementation. The packaging workflow gathers a
+The project and frozen Python executable are GPL-3.0-or-later covered.
+The retired Go implementation remains available in Git history under MIT. The packaging workflow gathers a
 source archive and license inventory for each platform. Release publication
 is blocked when a dependency source archive cannot be obtained; review the
 resulting archive and license evidence before the first public release.
@@ -57,7 +56,7 @@ resulting archive and license evidence before the first public release.
 ## RSA public-key pinning
 
 The provider schema exposes optional `password_key_pin` and `auth_key_pin`
-attributes, corresponding to the Go provider's independently verified RSA
+attributes, equivalent to the originally verified RSA
 pre-authentication SPKI fingerprints. The pins must be enrolled over a trusted
 connection. They are intentionally optional; configuring them against a Python
 library without SG pin verification fails closed instead of silently ignoring
@@ -73,3 +72,23 @@ by this provider. The immutable commit and its branch reachability are checked i
 Correctly pinned login and mismatched password/authentication pins were checked
 on the AX23. In each mismatch case authorization failed before session setup.
 No router I/O occurs during provider configuration.
+
+## Read-only router inventory for OpenTofu
+
+The replacement for `cmd/tfinventory` uses the pinned Python SG client and
+never changes router configuration. It writes `inventory.auto.tfvars` and
+`imports.tf` with restrictive file permissions. Both contain private LAN data
+and must remain gitignored.
+
+```sh
+. .venv/bin/activate
+export TPLINK_PASSWORD='...'
+# Optionally supply trusted fingerprints via TPLINK_PASSWORD_KEY_PIN / TPLINK_AUTH_KEY_PIN
+python -m tplink_py.inventory --dry-run --dir /path/to/nix/infra/router
+python -m tplink_py.inventory --dir /path/to/nix/infra/router
+```
+
+Review both generated files and confirm that existing household reservations
+are preserved before `tofu plan`. Never run `tofu apply` until the plan has
+been checked. This tool requires local access to the router; all of its tests
+run against local objects only.
