@@ -4,7 +4,6 @@ This is intentionally a release gate. Missing source distributions, missing
 license material or a moved router-library pin must fail publication.
 Run on each target OS because the frozen dependency set may differ by OS.
 """
-import hashlib
 from importlib import metadata
 import json
 from pathlib import Path
@@ -68,7 +67,7 @@ def collect(version, platform, root=ROOT):
     found = dependencies()
     result_dir = root / "dist" / "release"
     result_dir.mkdir(parents=True, exist_ok=True)
-    output = result_dir / f"terraform-provider-tplink_{version}_{platform}_source.zip"
+    output = result_dir / f"tplink-provider-sources_{version}_{platform}.zip"
 
     with tempfile.TemporaryDirectory(prefix="tplink-sources-") as work:
         temp = Path(work)
