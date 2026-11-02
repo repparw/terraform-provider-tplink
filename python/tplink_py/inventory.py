@@ -15,7 +15,7 @@ from tplinkrouterc6u import TplinkRouterSG
 
 def hcl_string(value: str) -> str:
     """Quote a string without allowing Terraform template interpolation."""
-    return json.dumps(str(value), ensure_ascii=False).replace("\${", "$\${").replace("%{", "%%{")
+    return json.dumps(str(value), ensure_ascii=False).replace("${", "$${").replace("%{", "%%{")
 
 
 def canonical_mac(value: str) -> str:
