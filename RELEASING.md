@@ -11,11 +11,12 @@ required-reviewer `publish` environment.
 - Frozen Linux binary requires a compatible glibc loader. Stock NixOS needs
   `programs.nix-ld.enable = true;` and any required dynamic libraries such
   as `libz` available to nix-ld. A standalone NixOS packaging option is open.
-- The pinned library tag `pyprovider-pin-20261031` already includes both
-  SG RSA public-key pin checks, and CI tests that specific tag. Fork PR #3
-  contains a separate proposed implementation; it is not the pinned code.
-  Correct/mismatched pins still need authorized live AX23 verification.
-  The provider fails closed if a future library dependency omits pin support.
+- The pinned library tag `pyprovider-pin-20261031` includes both
+  SG RSA public-key pin checks, and CI tests that specific tag. Correct pins
+  and wrong password/authentication pins were hardware-validated on AX23 v2.
+  A missing pin API or mismatched key fails closed.
+- The provider only retries explicit router-reported session expiry. Unknown
+  network timeouts are not retried, as writes may already have succeeded.
 - Passive-first auto-detection is not in the Python release. AX23 uses SG
   explicitly and avoids legacy credential-based probing.
 
@@ -24,13 +25,15 @@ required-reviewer `publish` environment.
 1. Run `python python/check_dependency_pin.py` to confirm the pinned
    Python-library tag still resolves to the reviewed SHA in
    `python/dependency-lock.json`. Keep the matching source available.
-2. Validate both optional RSA pins against the installed pinned-library
-   tests and, with explicit hardware authorization, the real router. Do not
-   hardcode fingerprint values.
+2. Preserve the successful hardware pinning test evidence. Recheck pinning
+   after any router firmware, dependency or key change; never hardcode values.
 3. Update `docs/` and `examples/` to match the actual provider schema.
-4. Review license compatibility and create a complete transitive dependency
-   attribution/source bundle. The frozen Python provider is GPL-covered; the
-   previous Go implementation remains MIT.
+4. Review the CI-produced, per-platform `*_source.zip` archives containing
+   the provider source, exact pinned router-library source, transitive Python
+   dependency source distributions, license files and `DEPENDENCIES.json`.
+   Missing source distributions or license evidence fail packaging. Verify
+   that the inventory actually covers the frozen binary before approving
+   the `publish` job. The Python release is GPL-covered; Go remains MIT.
 5. Review CI on PR #8: unit tests, Terraform simulated CRUD/import/replace,
    and Linux/macOS/Windows frozen-binary schema and archive-format checks.
 6. Test published-package installation with Terraform and OpenTofu using
@@ -45,9 +48,12 @@ required-reviewer `publish` environment.
 ## Release procedure
 
 Only after the PR is merged and its checks pass, create an annotated or
-signed tag `pyprovider-v0.1.0` pointing at the intended release commit.
+signed tag `v0.1.0` pointing at the intended release commit. The public
+Terraform Registry expects `v`-prefixed semantic-version tags; the old
+`pyprovider-v*` convention cannot publish a registry version.
 The `.github/workflows/python-release.yml` workflow builds three
-platforms, runs a real Terraform schema handshake and packages zip files.
+platforms, runs a real Terraform schema handshake and packages binary ZIPs
+plus matching source/license ZIPs.
 It does **not** publish until the `publish` environment job is approved.
 That job validates the artifacts, signs their checksums, verifies the
 signature and creates the GitHub Release. A user must then complete the
@@ -58,13 +64,16 @@ Expected assets for 0.1.0:
 - `terraform-provider-tplink_0.1.0_linux_amd64.zip`
 - `terraform-provider-tplink_0.1.0_darwin_arm64.zip`
 - `terraform-provider-tplink_0.1.0_windows_amd64.zip`
+- `terraform-provider-tplink_0.1.0_linux_amd64_source.zip`
+- `terraform-provider-tplink_0.1.0_darwin_arm64_source.zip`
+- `terraform-provider-tplink_0.1.0_windows_amd64_source.zip`
 - `terraform-provider-tplink_0.1.0_manifest.json` (protocol 6.0)
 - `terraform-provider-tplink_0.1.0_SHA256SUMS`
 - `terraform-provider-tplink_0.1.0_SHA256SUMS.sig` (binary detached GPG)
 
 Each archive contains the frozen `terraform-provider-tplink_v0.1.0`
 executable (with `.exe` on Windows), the GPL license and notices.
-The checksum file covers the three ZIPs and the versioned manifest.
+The checksum file covers all six ZIPs and the versioned manifest.
 
 Verify the signature against the published public signing key and the zip
 checksums before registering the release. Confirm independent
