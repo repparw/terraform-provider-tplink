@@ -74,7 +74,7 @@ def collect(version, platform, root=ROOT):
         temp = Path(work)
         fork = temp / "router-library"
         command("git", "clone", "--quiet", "--depth", "1",
-                "--branch", lock["tag"],
+                "--branch", lock["ref"].removeprefix("refs/heads/"),
                 f"https://github.com/{lock['repository']}.git", fork)
         actual = command("git", "rev-parse", "HEAD", cwd=fork).decode().strip()
         if actual != lock["commit"]:
