@@ -10,6 +10,7 @@ on:
       - 'python/build_frozen.py'
       - 'python/validate_frozen.py'
       - 'python/package_release.py'
+      - 'python/collect_release_sources.py'
       - 'python/validate_registry_package.py'
       - 'python/terraform-registry-manifest.json'
       - 'python/NOTICE.md'
@@ -60,6 +61,8 @@ jobs:
         run: python python/validate_frozen.py
       - name: Dry-run release archive packaging (never publish)
         run: python python/package_release.py 0.1.0 "${{ matrix.platform }}"
+      - name: Collect matching source archives and dependency licenses
+        run: python python/collect_release_sources.py 0.1.0 "${{ matrix.platform }}"
       - name: Verify release archive structure
         run: python -m pytest -q python/tests/test_release.py
       - name: Offline Terraform init from packaged provider ZIP
