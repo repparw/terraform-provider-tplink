@@ -1,4 +1,4 @@
-"""Fail builds if the pinned TP-Link library tag drifts to another commit."""
+"""Fail builds if the reviewed fork branch drifts from the pinned SHA."""
 import json
 from pathlib import Path
 import re
