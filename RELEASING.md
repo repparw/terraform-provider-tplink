@@ -26,7 +26,9 @@ required-reviewer `publish` environment.
    Python-library commit still resolves to the reviewed SHA in
    `python/dependency-lock.json`. Keep the matching source available.
 2. Preserve the successful hardware pinning test evidence. Recheck pinning
-   after any router firmware, dependency or key change; never hardcode values.
+   after any router firmware, dependency or key change with
+   `python -m tplink_py.keyprobe` over a trusted connection. Compare the
+   fingerprints independently before enrolling pins; never hardcode values.
 3. Keep `docs/` and `examples/` in sync with the Python provider schema and the new Python inventory generator.
 4. Review the CI-produced, per-platform `tplink-provider-sources_*.zip` archives containing
    the provider source, exact pinned router-library source, transitive Python

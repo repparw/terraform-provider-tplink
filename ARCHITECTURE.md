@@ -43,6 +43,8 @@ router library. Previous MIT grants are unaffected.
 - Port-forward identity is the rule name.
 - The Python inventory CLI generates Terraform variable and import files
   without changing router configuration.
+- The Python RSA key probe reads pre-authentication public keys without
+  logging in, as a replacement for the retired Go key probe.
 - The router permits only one administrative session and does not offer
   transactional multi-row writes.
 - Router state must be reconciled after ambiguous write outcomes. Do not

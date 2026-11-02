@@ -83,7 +83,9 @@ python -m tplink_py.inventory --dir /path/to/nix/infra/router
 ```
 
 The command connects to the router for reads only. It can optionally verify
-`TPLINK_PASSWORD_KEY_PIN` and `TPLINK_AUTH_KEY_PIN`. Check generated files,
+`TPLINK_PASSWORD_KEY_PIN` and `TPLINK_AUTH_KEY_PIN`. To enroll those
+fingerprints, first inspect the keys on a trusted connection using
+`python -m tplink_py.keyprobe`. The key probe never logs in or writes. Check generated files,
 plan output, and existing OpenTofu state before any apply, especially after
 out-of-band household changes.
 

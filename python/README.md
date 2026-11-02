@@ -55,6 +55,12 @@ resulting archive and license evidence before the first public release.
 
 ## RSA public-key pinning
 
+The retired Go `cmd/keyprobe` has been replaced by a Python read-only
+probe. Run `python -m tplink_py.keyprobe --host http://192.168.0.1`
+over a trusted connection and separately verify the fingerprints before
+configuring `password_key_pin` and `auth_key_pin`. The command reads
+the two public RSA keys without authenticating.
+
 The provider schema exposes optional `password_key_pin` and `auth_key_pin`
 attributes, equivalent to the originally verified RSA
 pre-authentication SPKI fingerprints. The pins must be enrolled over a trusted
