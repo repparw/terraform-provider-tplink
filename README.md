@@ -1,15 +1,15 @@
 # terraform-provider-tplink
 
-Terraform / OpenTofu provider for TP-Link home routers running the
-new-generation (SG-hardened) web UI — developed and verified against an
-**Archer AX23 v2.0, firmware 1.1.2 Build 20250814** (the same protocol
-generation as the Archer AX53, BE3600/BE230, and friends on the 2024-2026
-Vue UI).
+Terraform / OpenTofu provider for the **TP-Link Archer AX23 v2.0,
+firmware 1.1.2 Build 20250814**. Other hardware and firmware versions are
+not yet validated.
 
-Implemented natively in Go (no Python runtime, no browser automation). See
-[PROTOCOL.md](PROTOCOL.md) for the verified SG-hardened wire protocol and
-AX23 v2 hardware findings, and [ARCHITECTURE.md](ARCHITECTURE.md) for the
-implementation decision record.
+The intended v0.1.0 release is implemented in [Python/Pyvider](python/)
+and distributed as frozen executables, so end users do not need Python.
+The previous [Go implementation](main.go) remains an MIT-licensed reference
+client until retirement. The Python release is GPL-3.0-or-later due to its
+router-library dependency. See [PROTOCOL.md](PROTOCOL.md) for the verified
+wire protocol and [RELEASING.md](RELEASING.md) for publication steps.
 
 ## Requirements
 
@@ -35,7 +35,8 @@ provider "tplink" {
 }
 ```
 
-Build and install via a plugin directory (verified with OpenTofu 1.13):
+To test the Go reference client locally (not the v0.1.0 Python release),
+build and install via a plugin directory (verified with OpenTofu 1.13):
 
 ```sh
 go build -o terraform-provider-tplink .
@@ -45,7 +46,9 @@ tofu init -plugin-dir=~/.tofu.d/plugins
 ```
 
 `terraform` works the same way with `~/.terraform.d/plugins` and
-`terraform init -plugin-dir=...`.
+`terraform init -plugin-dir=...`. The Python release uses the signed
+registry ZIPs described in [RELEASING.md](RELEASING.md). Neither registry
+address should be assumed published until registration is complete.
 
 ## Data sources (read-only)
 
@@ -111,8 +114,9 @@ tofu import tplink_dhcp_reservation.pi "2C-CF-67-00-4F-47"
 ## Operational notes (read before applying)
 
 - **Single admin session.** The router allows exactly one admin login;
-  provider runs evict an interactive web-UI session and vice versa. The
-  provider re-authenticates transparently if the router expires its session.
+  provider runs evict an interactive web-UI session and vice versa. The Python
+  provider retries only explicit session-expiry errors; uncertain network
+  timeouts are surfaced rather than replaying possible writes.
 - **Lockout.** Roughly 12 failed logins trigger a ~2 h lockout. The provider
   never retries failed logins. Keep the password in TF_VAR_router_password,
   a secret manager, or an interactive prompt — never in git.
@@ -124,7 +128,9 @@ tofu import tplink_dhcp_reservation.pi "2C-CF-67-00-4F-47"
   all known planned values, not just the identity.
 - **Concurrency.** Multi-request table changes are serialized within the provider
   process. Other processes or a web-UI session can still race with an apply.
-- **Cancellation.** Terraform cancellation is propagated to router HTTP requests.
+- **Cancellation.** The Go reference client propagates Terraform cancellation
+  to router HTTP requests. Do not assume equivalent cancellation behavior in
+  the Python client without separate verification.
 - **Verified hardware.** The full managed-resource write cycle (create →
   update → destroy of a disposable disabled reservation and port forward,
   read-back verified after each step) and all read operations were executed
@@ -134,13 +140,26 @@ tofu import tplink_dhcp_reservation.pi "2C-CF-67-00-4F-47"
 
 ## Development
 
+For the Python release candidate:
+
 ```sh
-go test ./...          # unit + protocol-conformance tests (mock router)
-go run ./cmd/livescan  # read-only check against real hardware (TPLINK_PASSWORD env)
+python -m venv .venv
+. .venv/bin/activate
+pip install -e './python[test]'
+pytest -q python/tests
+```
+
+For the separate Go reference implementation:
+
+```sh
+go test ./...
+go run ./cmd/livescan  # read-only; requires authorized router access
 gofmt -l . && go vet ./...
 ```
 
 ## License
 
-MIT. This project reimplements a documented wire protocol; it does
-not incorporate code from GPL-licensed projects (see ARCHITECTURE.md).
+The Python provider and frozen distribution are **GPL-3.0-or-later**.
+The separate Go reference implementation remains **MIT**.
+See [python/NOTICE.md](python/NOTICE.md) and [RELEASING.md](RELEASING.md)
+for third-party source and license distribution requirements.
