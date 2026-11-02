@@ -19,8 +19,8 @@ def test_canonical_mac_and_invalid_input():
 
 
 def test_template_escaping():
-    quoted = hcl_string("rule-\${device}-%{ if true }")
-    assert quoted == '"rule-$\${device}-%%{ if true }"'
+    quoted = hcl_string("rule-${device}-%{ if true }")
+    assert quoted == '"rule-$${device}-%%{ if true }"'
     assert json.loads(hcl_string('test"\\')) == 'test"\\'
 
 
@@ -28,10 +28,10 @@ def test_inventory_rendering_and_import_keys():
     fw = Row(model="AX23", hardware_version="v2", firmware_version="1.1.2")
     reservations = [
         Row(macaddr="aa:bb:cc:dd:ee:ff", ipaddr="192.168.0.33",
-            hostname="phone-\${hostname}", enabled=True),
+            hostname="phone-${hostname}", enabled=True),
     ]
     forwards = [
-        Row(name="rule-\${literal}", ipaddr="192.168.0.4",
+        Row(name="rule-${literal}", ipaddr="192.168.0.4",
             external_port="443", internal_port="8443",
             protocol="TCP", enabled=False),
     ]
@@ -39,8 +39,8 @@ def test_inventory_rendering_and_import_keys():
     assert list(dhcp) == ["AA-BB-CC-DD-EE-FF"]
     vars_ = render_tfvars(fw, dhcp, rules)
     imports = render_imports(dhcp, rules)
-    assert 'phone-$\${hostname}' in vars_
-    assert '"rule-$\${literal}"' in imports
+    assert 'phone-$${hostname}' in vars_
+    assert '"rule-$${literal}"' in imports
     assert "enabled = false" in vars_
     assert 'tplink_dhcp_reservation.entries["AA-BB-CC-DD-EE-FF"]' in imports
 
