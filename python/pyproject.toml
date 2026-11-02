@@ -6,7 +6,7 @@ license = "GPL-3.0-or-later"
 requires-python = ">=3.11"
 dependencies = [
   "pyvider==0.8.1",
-  "tplinkrouterc6u @ git+https://github.com/repparw/TP-Link-Archer-C6U.git@b40ab375b51da06b1d87bb318513c1e262770fdc",
+  "tplinkrouterc6u @ git+https://github.com/repparw/TP-Link-Archer-C6U.git@588f74f57a35e3818deb40825c8788d0240a2f62",
 ]
 
 [project.scripts]
