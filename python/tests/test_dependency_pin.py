@@ -19,7 +19,7 @@ def test_dependency_ref_mismatch_fails(tmp_path):
         '{"repository":"repparw/TP-Link-Archer-C6U","tag":"moved","commit":"b40ab375b51da06b1d87bb318513c1e262770fdc"}'
     )
     (python / "pyproject.toml").write_text(
-        '[project]\ndependencies = ["tplinkrouterc6u @ git+https://github.com/repparw/TP-Link-Archer-C6U.git@b40ab375b51da06b1d87bb318513c1e262770fdc"]'
+        '[project]\ndependencies = ["tplinkrouterc6u @ git+https://github.com/repparw/TP-Link-Archer-C6U.git@08a77c8e55142d91b9affef4ac91097a4a873bbd"]'
     )
     with pytest.raises(ValueError, match="differs"):
         check(tmp_path, remote=False)
