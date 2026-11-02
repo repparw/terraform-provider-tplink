@@ -6,7 +6,7 @@ with full schema parity and hardware-verified reads and writes against the
 target. The Go implementation on main remains the reference client until this
 passes the final release checks, after which it is retired.
 
-It uses Pyvider 0.8.1 for Terraform protocol v6 and the reviewed tplinkrouterc6u fork tag `pyprovider-pin-20261031`
+It uses Pyvider 0.8.1 for Terraform protocol v6 and the reviewed tplinkrouterc6u fork commit `b40ab375b51da06b1d87bb318513c1e262770fdc`
 for the TP-Link SG router protocol. No sidecar or duplicated router crypto.
 
 Current proof:
@@ -18,7 +18,7 @@ Current proof:
   persistent mock router, without physical router changes
 - Terraform schema handshake for the Python development wrapper and frozen
   Linux binary; packaged Windows/macOS/Linux schema tests have passed in CI
-- the pinned fork tag adds hardware-tested in-place DHCP updates and RSA key checks; replace
+- the pinned fork commit adds hardware-tested in-place DHCP updates and RSA key checks; replace
   the Git dependency with a released library once upstream accepts it
 
 Hardware verification status: full read parity (five data sources, compared
@@ -63,7 +63,7 @@ connection. They are intentionally optional; configuring them against a Python
 library without SG pin verification fails closed instead of silently ignoring
 them.
 
-The pinned library tag already includes both key checks. A separate,
+The pinned library commit includes both key checks and explicit SG session-expiry errors. A separate,
 unmerged [fork PR #3](https://github.com/repparw/TP-Link-Archer-C6U/pull/3)
 contains an alternative implementation; it is **not** the code installed
 by this provider. The tag and its reviewed commit are checked in CI against
