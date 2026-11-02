@@ -6,7 +6,7 @@ with full schema parity and hardware-verified reads and writes against the
 target. The Go implementation on main remains the reference client until this
 passes the final release checks, after which it is retired.
 
-It uses Pyvider 0.8.1 for Terraform protocol v6 and the reviewed tplinkrouterc6u fork commit `b40ab375b51da06b1d87bb318513c1e262770fdc`
+It uses Pyvider 0.8.1 for Terraform protocol v6 and the reviewed tplinkrouterc6u fork commit `588f74f57a35e3818deb40825c8788d0240a2f62`
 for the TP-Link SG router protocol. No sidecar or duplicated router crypto.
 
 Current proof:
