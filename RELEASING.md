@@ -11,7 +11,7 @@ required-reviewer `publish` environment.
 - Frozen Linux binary requires a compatible glibc loader. Stock NixOS needs
   `programs.nix-ld.enable = true;` and any required dynamic libraries such
   as `libz` available to nix-ld. A standalone NixOS packaging option is open.
-- The pinned library commit `b40ab375b51da06b1d87bb318513c1e262770fdc` includes both
+- The pinned library commit `588f74f57a35e3818deb40825c8788d0240a2f62` includes both
   SG RSA public-key pin checks, and CI tests that specific commit. Correct pins
   and wrong password/authentication pins were hardware-validated on AX23 v2.
   A missing pin API or mismatched key fails closed.
