@@ -11,7 +11,7 @@ required-reviewer `publish` environment.
 - Frozen Linux binary requires a compatible glibc loader. Stock NixOS needs
   `programs.nix-ld.enable = true;` and any required dynamic libraries such
   as `libz` available to nix-ld. A standalone NixOS packaging option is open.
-- The pinned library tag `pyprovider-pin-20261031` includes both
+- The pinned library commit `b40ab375b51da06b1d87bb318513c1e262770fdc` includes both
   SG RSA public-key pin checks, and CI tests that specific tag. Correct pins
   and wrong password/authentication pins were hardware-validated on AX23 v2.
   A missing pin API or mismatched key fails closed.
@@ -23,7 +23,7 @@ required-reviewer `publish` environment.
 ## Before the first release
 
 1. Run `python python/check_dependency_pin.py` to confirm the pinned
-   Python-library tag still resolves to the reviewed SHA in
+   Python-library commit still resolves to the reviewed SHA in
    `python/dependency-lock.json`. Keep the matching source available.
 2. Preserve the successful hardware pinning test evidence. Recheck pinning
    after any router firmware, dependency or key change; never hardcode values.
