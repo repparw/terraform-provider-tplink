@@ -12,7 +12,7 @@ required-reviewer `publish` environment.
   `programs.nix-ld.enable = true;` and any required dynamic libraries such
   as `libz` available to nix-ld. A standalone NixOS packaging option is open.
 - The pinned library commit `b40ab375b51da06b1d87bb318513c1e262770fdc` includes both
-  SG RSA public-key pin checks, and CI tests that specific tag. Correct pins
+  SG RSA public-key pin checks, and CI tests that specific commit. Correct pins
   and wrong password/authentication pins were hardware-validated on AX23 v2.
   A missing pin API or mismatched key fails closed.
 - The provider only retries explicit router-reported session expiry. Unknown
