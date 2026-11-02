@@ -82,3 +82,23 @@ def test_provider_schema_includes_router_config():
     names = instance.schema.block.attributes.keys()
     assert {"host", "username", "password", "tls_skip_verify",
             "timeout_seconds"} <= set(names)
+
+
+def test_duplicate_port_forward_update_fails_before_write():
+    resource = PortForward()
+    cfg = PortForwardConfig(
+        "duplicate", "192.168.0.9", "443", "8443", "TCP", True)
+    ctx = Obj(config=cfg, state=Obj(name="duplicate"))
+    fake_provider = Obj(call=AsyncMock())
+
+    with patch("tplink_py.port_forward.provider", return_value=fake_provider), \
+         patch("tplink_py.port_forward.verified_forward",
+               side_effect=RuntimeError("ambiguous duplicate")):
+        try:
+            asyncio.run(resource._update_apply(ctx))
+        except RuntimeError as err:
+            assert "duplicate" in str(err)
+        else:
+            raise AssertionError("duplicate names were accepted")
+
+    fake_provider.call.assert_not_awaited()
