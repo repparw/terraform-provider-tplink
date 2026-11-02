@@ -6,6 +6,9 @@ existing tplinkrouterc6u protocol implementation, never a second Go client.
 import asyncio
 import inspect
 import os
+import re
+
+from tplinkrouterc6u.common.exception import ClientError
 
 from pyvider.providers import BaseProvider, ProviderMetadata, register_provider
 from pyvider.schema import PvsSchema, a_bool, a_str, s_provider
@@ -75,7 +78,12 @@ class TPLinkProvider(BaseProvider):
                 # another admin, answering HTTP 200 with errorcode "timeout":
                 # the request was rejected before execution, so a single
                 # re-authenticate-and-retry is safe (mirrors the Go client).
-                if "timeout" not in str(exc).lower():
+                # Transport timeouts can occur after router writes succeed.
+                # Retry only an explicit router-reported session expiry.
+                if not (isinstance(exc, ClientError) and re.search(
+                    r"\berrorcode\s*[:=]?\s*['\"]?timeout\b",
+                    str(exc), flags=re.IGNORECASE,
+                )):
                     raise
                 self._authenticated = False
                 await self._authorize()
