@@ -1,0 +1,92 @@
+# Python provider release checklist
+
+The Python/Pyvider implementation is the sole v0.1.0 release candidate (GPL-3.0-or-later). The Go provider and Go CI were retired before the first public release.
+**Do not tag, merge, or publish while PR #8 is draft.** A GitHub release is
+separate from registry registration, and publishing is restricted by the
+required-reviewer `publish` environment.
+
+## Verified scope and limitations
+
+- Hardware writes verified only on Archer AX23 v2.0, firmware 1.1.2 Build 20250814.
+- Frozen Linux binary requires a compatible glibc loader. Stock NixOS needs
+  `programs.nix-ld.enable = true;` and any required dynamic libraries such
+  as `libz` available to nix-ld. A standalone NixOS packaging option is open.
+- The pinned library commit `588f74f57a35e3818deb40825c8788d0240a2f62` includes both
+  SG RSA public-key pin checks, and CI tests that specific commit. Correct pins
+  and wrong password/authentication pins were hardware-validated on AX23 v2.
+  A missing pin API or mismatched key fails closed.
+- The provider only retries explicit router-reported session expiry. Unknown
+  network timeouts are not retried, as writes may already have succeeded.
+- Passive-first auto-detection is not in the Python release. AX23 uses SG
+  explicitly and avoids legacy credential-based probing.
+
+## Before the first release
+
+1. Run `python python/check_dependency_pin.py` to confirm the pinned
+   Python-library commit still resolves to the reviewed SHA in
+   `python/dependency-lock.json`. Keep the matching source available.
+2. Preserve the successful hardware pinning test evidence. Recheck pinning
+   after any router firmware, dependency or key change with
+   `python -m tplink_py.keyprobe` over a trusted connection. Compare the
+   fingerprints independently before enrolling pins; never hardcode values.
+3. Keep `docs/` and `examples/` in sync with the Python provider schema and the new Python inventory generator.
+4. Review the CI-produced, per-platform `tplink-provider-sources_*.zip` archives containing
+   the provider source, exact pinned router-library source, transitive Python
+   dependency source distributions, license files and `DEPENDENCIES.json`.
+   Missing source distributions or license evidence fail packaging. Verify
+   that the inventory actually covers the frozen binary before approving
+   the `publish` job. The repository is now GPL-3.0-or-later. Historical Go versions remain available under their original MIT grant in Git history.
+5. Review CI on PR #8: unit tests, Terraform simulated CRUD/import/replace,
+   and Linux/macOS/Windows frozen-binary schema and archive-format checks.
+6. Test published-package installation with Terraform and OpenTofu using
+   correct registry addresses; only the development provider has been
+   hardware-validated on AX23.
+7. Configure the GitHub Actions `publish` environment with mandatory maintainer
+   approval and restricted trusted tag-creation permissions. Store
+   `GPG_PRIVATE_KEY` and `PASSPHRASE` as environment secrets. Register the
+   public RSA/DSA GPG signing key with Terraform Registry and separately
+   with the OpenTofu Registry. Never commit a private key.
+
+## Release procedure
+
+Only after the PR is merged and its checks pass, create an annotated or
+signed tag `v0.1.0` pointing at the intended release commit. The public
+Terraform Registry expects `v`-prefixed semantic-version tags; the old
+`pyprovider-v*` convention cannot publish a registry version.
+The `.github/workflows/python-release.yml` workflow builds three
+platforms, runs a real Terraform schema handshake and packages binary ZIPs
+plus matching source/license ZIPs.
+It does **not** publish until the `publish` environment job is approved.
+That job validates the artifacts, signs their checksums, verifies the
+signature and creates the GitHub Release. A user must then complete the
+registry registration separately.
+
+Expected assets for 0.1.0:
+
+- `terraform-provider-tplink_0.1.0_linux_amd64.zip`
+- `terraform-provider-tplink_0.1.0_darwin_arm64.zip`
+- `terraform-provider-tplink_0.1.0_windows_amd64.zip`
+- `tplink-provider-sources_0.1.0_linux_amd64.zip`
+- `tplink-provider-sources_0.1.0_darwin_arm64.zip`
+- `tplink-provider-sources_0.1.0_windows_amd64.zip`
+- `terraform-provider-tplink_0.1.0_manifest.json` (protocol 6.0)
+- `terraform-provider-tplink_0.1.0_SHA256SUMS`
+- `terraform-provider-tplink_0.1.0_SHA256SUMS.sig` (binary detached GPG)
+
+Each archive contains the frozen `terraform-provider-tplink_v0.1.0`
+executable (with `.exe` on Windows), the GPL license and notices.
+The checksum file covers all six ZIPs and the versioned manifest.
+
+Verify the signature against the published public signing key and the zip
+checksums before registering the release. Confirm independent
+`terraform init` / `tofu init` using supported registry addresses and a
+clean provider cache. Do not assume a release visible on GitHub is usable
+from either registry.
+
+## Documentation and scope
+
+The provider's identity is `tplink`. The
+registry source addresses `registry.terraform.io/repparw/tplink` and
+`registry.opentofu.org/repparw/tplink` are independently registered.
+Neither address has been validated as published yet. Only AX23 v2.0
+firmware 1.1.2 is supported until additional hardware is tested.
