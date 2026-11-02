@@ -117,7 +117,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: repparw/TP-Link-Archer-C6U
-          ref: b40ab375b51da06b1d87bb318513c1e262770fdc
+          ref: 588f74f57a35e3818deb40825c8788d0240a2f62
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
