@@ -67,12 +67,14 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Checkout must precede downloads: checkout's workspace cleanup deletes
+      # anything unpacked in dist/release when it runs second.
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           pattern: release-*
           path: dist/release
           merge-multiple: true
-      - uses: actions/checkout@v4
       - name: Recheck source archives on the publication runner
         shell: bash
         run: |
