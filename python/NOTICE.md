@@ -17,4 +17,12 @@ builds per-platform corresponding-source ZIPs with dependency source archives,
 license files and a dependency inventory. Publication requires those ZIPs;
 review their completeness and compatibility before approving the release.
 
+The transitive `google==3.0.0` package has BSD-3-Clause redistribution
+terms in its source `setup.py` but reports `License: UNKNOWN` and installs
+no standalone license file. The release collector copies the full header
+from its hash-verified source distribution into
+`licenses/google/BSD-3-Clause-from-setup.py.txt`. It fails if the version
+or license header changes. This preserves the binary-redistribution notice
+and allows a reviewer to compare it against the supplied source.
+
 No public Python-provider release has been cut. Never distribute a frozen binary without its matching per-platform source and license archive.

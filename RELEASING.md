@@ -1,9 +1,10 @@
 # Python provider release checklist
 
 The Python/Pyvider implementation is the sole v0.1.0 release candidate (GPL-3.0-or-later). The Go provider and Go CI were retired before the first public release.
-**Do not tag, merge, or publish while PR #8 is draft.** A GitHub release is
-separate from registry registration, and publishing is restricted by the
-required-reviewer `publish` environment.
+Provider PR #8 merged on 2026-11-02. Do not tag or publish until the source
+archive audit, Alpha frozen-binary verification, and protected signing setup
+are complete. A GitHub release is separate from registry registration, and
+publication is restricted by the required-reviewer `publish` environment.
 
 ## Verified scope and limitations
 
@@ -30,22 +31,27 @@ required-reviewer `publish` environment.
    `python -m tplink_py.keyprobe` over a trusted connection. Compare the
    fingerprints independently before enrolling pins; never hardcode values.
 3. Keep `docs/` and `examples/` in sync with the Python provider schema and the new Python inventory generator.
-4. Review the CI-produced, per-platform `tplink-provider-sources_*.zip` archives containing
-   the provider source, exact pinned router-library source, transitive Python
-   dependency source distributions, license files and `DEPENDENCIES.json`.
-   Missing source distributions or license evidence fail packaging. Verify
-   that the inventory actually covers the frozen binary before approving
-   the `publish` job. The repository is now GPL-3.0-or-later. Historical Go versions remain available under their original MIT grant in Git history.
-5. Review CI on PR #8: unit tests, Terraform simulated CRUD/import/replace,
-   and Linux/macOS/Windows frozen-binary schema and archive-format checks.
-6. Test published-package installation with Terraform and OpenTofu using
-   correct registry addresses; only the development provider has been
-   hardware-validated on AX23.
+4. Review the CI-produced, per-platform `tplink-provider-sources_*.zip` archives.
+   The automated `python/verify_release_sources.py` gate checks archive integrity,
+   provider and router-library source presence, dependency source hashes, and
+   the license inventory. This is not a substitute for a human review of the
+   actual frozen binary's transitive components, corresponding-source coverage,
+   and third-party license obligations. Historical Go versions retain MIT terms.
+5. Review the latest release-candidate CI: unit tests, Terraform simulated
+   CRUD/import/replace, and Linux/macOS/Windows frozen-binary schema, archive,
+   and offline package-installation checks. Download the artifact from the
+   *specific successful head commit* being considered for the release.
+6. Before tagging, run the Linux release-candidate executable on Alpha and
+   perform a read-only plan against the existing router/OpenTofu state.
+   Do not modify household entries or use `tofu apply` for this release check.
+   After registry publication, independently test fresh `terraform init` and
+   `tofu init` with the real registry source addresses and clean caches.
 7. Configure the GitHub Actions `publish` environment with mandatory maintainer
    approval and restricted trusted tag-creation permissions. Store
-   `GPG_PRIVATE_KEY` and `PASSPHRASE` as environment secrets. Register the
-   public RSA/DSA GPG signing key with Terraform Registry and separately
-   with the OpenTofu Registry. Never commit a private key.
+   `GPG_PRIVATE_KEY` and `PASSPHRASE` as environment secrets. Use an RSA/DSA
+   GPG signing key (not an ECC-only key) for Terraform Registry compatibility.
+   Register its public key with Terraform Registry and separately with OpenTofu.
+   Never commit a private key.
 
 ## Release procedure
 
@@ -58,8 +64,20 @@ platforms, runs a real Terraform schema handshake and packages binary ZIPs
 plus matching source/license ZIPs.
 It does **not** publish until the `publish` environment job is approved.
 That job validates the artifacts, signs their checksums, verifies the
-signature and creates the GitHub Release. A user must then complete the
-registry registration separately.
+signature and creates the GitHub Release. A maintainer must then complete registry registration separately.
+
+For Terraform Registry, sign in through GitHub, add the ASCII-armored public
+GPG key in User Settings > Signing Keys, then use Publish > Provider to register
+`repparw/terraform-provider-tplink` (see
+[HashiCorp's publishing guide](https://developer.hashicorp.com/terraform/registry/providers/publishing)).
+
+For OpenTofu Registry, use the **GitHub issue forms** in
+[opentofu/registry](https://github.com/opentofu/registry):
+[provider submission](https://github.com/opentofu/registry/issues/new?template=provider.yml)
+and [provider signing-key submission](https://github.com/opentofu/registry/issues/new?template=provider_key.yml).
+These must be submitted through the interactive issue-form UI. Its automation
+explicitly rejects plain API/CLI-created issues and direct metadata PRs.
+Allow for review before relying on `registry.opentofu.org/repparw/tplink`.
 
 Expected assets for 0.1.0:
 

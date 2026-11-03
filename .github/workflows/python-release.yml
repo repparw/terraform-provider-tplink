@@ -48,6 +48,7 @@ jobs:
           python python/validate_frozen.py
           python python/package_release.py "$VERSION" "${{ matrix.platform }}"
           python python/collect_release_sources.py "$VERSION" "${{ matrix.platform }}"
+          python python/verify_release_sources.py "$VERSION" "${{ matrix.platform }}"
           python -m pytest -q python/tests/test_release.py
           python python/validate_registry_package.py "$VERSION" "${{ matrix.platform }}"
       - uses: actions/upload-artifact@v4
@@ -71,6 +72,15 @@ jobs:
           pattern: release-*
           path: dist/release
           merge-multiple: true
+      - uses: actions/checkout@v4
+      - name: Recheck source archives on the publication runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          for PLATFORM in linux_amd64 darwin_arm64 windows_amd64; do
+            python python/verify_release_sources.py "$VERSION" "$PLATFORM"
+          done
       - name: Validate complete release archive matrix before signing
         working-directory: dist/release
         shell: bash

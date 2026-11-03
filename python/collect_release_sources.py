@@ -5,7 +5,9 @@ license material or a moved router-library pin must fail publication.
 Run on each target OS because the frozen dependency set may differ by OS.
 """
 from importlib import metadata
+from io import BytesIO
 import json
+import tarfile
 from urllib.request import urlopen
 from pathlib import Path
 import re
@@ -67,6 +69,33 @@ def pypi_source(name, version):
     if hashlib.sha256(data).hexdigest() != artifact["digests"]["sha256"]:
         raise RuntimeError(f"Source distribution hash mismatch: {name}")
     return artifact["filename"], data
+
+
+def google_legacy_notice(version, source):
+    """Recover google 3.0.0's BSD notice from its source setup.py.
+
+    This package has License: UNKNOWN and no installed LICENSE file, but its
+    PyPI source distribution explicitly carries a BSD-3-Clause header.
+    Reject unexpected versions or changed headers rather than inventing a
+    license from a PyPI classifier.
+    """
+    if version != "3.0.0":
+        raise RuntimeError("Review changed google dependency license before release")
+    with tarfile.open(fileobj=BytesIO(source), mode="r:gz") as archive:
+        entry = archive.extractfile("google-3.0.0/setup.py")
+        if entry is None:
+            raise RuntimeError("google source missing setup.py license header")
+        setup = entry.read().decode("utf-8")
+    header, separator, _ = setup.partition("\nfrom os import chdir")
+    required = (
+        "Copyright (c) 2009-2020, Mario Vilas",
+        "Redistribution and use in source and binary forms",
+        "Neither the name of the copyright holder",
+        "THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS",
+    )
+    if not separator or any(clause not in header for clause in required):
+        raise RuntimeError("google source BSD license text changed; review required")
+    return (header.strip() + "\n").encode("utf-8")
 
 
 def license_files(distribution):
@@ -134,8 +163,19 @@ def collect(version, platform, root=ROOT):
                     row["source"] = f"sources/{filename}"
                     row["source_sha256"] = hashlib.sha256(data).hexdigest()
                     archive.writestr(row["source"], data)
-                if not row["license_files"] and not row["license"]:
-                    raise RuntimeError(f"No license evidence for {name}")
+                    if name == "google":
+                        # The 3.0.0 distribution's metadata says UNKNOWN and
+                        # it installs no standalone notice, but setup.py
+                        # contains the full BSD-3-Clause redistribution terms.
+                        notice = google_legacy_notice(version_installed, data)
+                        target = "licenses/google/BSD-3-Clause-from-setup.py.txt"
+                        archive.writestr(target, notice)
+                        row["license_files"].append(target)
+                        row["license"] = "BSD-3-Clause (source setup.py)"
+                if not row["license_files"] and str(row["license"]).strip().upper() in {
+                    "", "UNKNOWN", "NONE"
+                }:
+                    raise RuntimeError(f"No usable license evidence for {name}")
                 inventory.append(row)
             archive.writestr(
                 "DEPENDENCIES.json",
