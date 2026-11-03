@@ -66,6 +66,19 @@ It does **not** publish until the `publish` environment job is approved.
 That job validates the artifacts, signs their checksums, verifies the
 signature and creates the GitHub Release. A maintainer must then complete registry registration separately.
 
+**The PR artifact is a preflight candidate, not proof of the final release
+binary.** Python transitive dependencies and PyInstaller are not fully locked,
+so a tag-triggered rebuild might differ. After creating the tag, wait for
+all three `release` matrix jobs to succeed, download the
+`release-linux_amd64` artifact from the **tag-triggered** workflow run, and
+repeat Alpha's read-only executable/plan checks on that exact artifact.
+Inspect the matching source ZIP and dependency inventory from the same run.
+Only approve the protected `publish` job after this second check succeeds.
+If the tag artifact fails, do not publish or move the tag; fix the issue and
+prepare a new candidate/version. Configure the protected environment before
+creating any tag because a newly referenced GitHub environment may have no
+approval rules until explicitly configured.
+
 For Terraform Registry, sign in through GitHub, add the ASCII-armored public
 GPG key in User Settings > Signing Keys, then use Publish > Provider to register
 `repparw/terraform-provider-tplink` (see
