@@ -11,6 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from verify_release_sources import verify  # noqa: E402
+from collect_release_sources import google_legacy_notice  # noqa: E402
 
 
 def tarball(files):
@@ -100,3 +101,23 @@ def test_reject_wrong_platform_or_commit(release):
     lock.write_text(json.dumps({"commit": "b" * 40}))
     with pytest.raises(RuntimeError, match="metadata mismatch"):
         verify("0.1.0", "linux_amd64", root)
+
+
+def test_legacy_google_notice_rejects_unknown_license_changes():
+    source = tarball({
+        "google-3.0.0/setup.py": b"""#!/usr/bin/env python
+# Copyright (c) 2009-2020, Mario Vilas
+# Redistribution and use in source and binary forms
+# Neither the name of the copyright holder
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS
+
+from os import chdir
+""",
+    })
+    assert b"Copyright" in google_legacy_notice("3.0.0", source)
+    with pytest.raises(RuntimeError, match="changed google dependency"):
+        google_legacy_notice("3.0.1", source)
+
+    changed = tarball({"google-3.0.0/setup.py": b"license removed"})
+    with pytest.raises(RuntimeError, match="BSD license text changed"):
+        google_legacy_notice("3.0.0", changed)
