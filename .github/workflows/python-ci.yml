@@ -13,8 +13,8 @@ jobs:
   adapter:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - run: python python/check_dependency_pin.py
@@ -27,11 +27,11 @@ jobs:
     # the provider without attempting any router login.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: repparw/TP-Link-Archer-C6U
           ref: c6fb9afa069c32adc99053210e4276b64ca4926a
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - run: python -m pip install -e . pytest flake8
@@ -43,11 +43,11 @@ jobs:
     # Terraform Plugin Protocol 6 and exposes the expected schema.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: '1.17.1'
           terraform_wrapper: false
@@ -98,11 +98,11 @@ jobs:
     # Read-only upstream method tests: this fork's own Actions are disabled.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: repparw/TP-Link-Archer-C6U
           ref: 19cceb975ed3c1d3ce666e1b1dc2dda03899497e
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - run: python -m pip install -e . pytest flake8
@@ -114,11 +114,11 @@ jobs:
     # The separate fork PR #3 is not part of the dependency in pyproject.toml.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: repparw/TP-Link-Archer-C6U
           ref: 588f74f57a35e3818deb40825c8788d0240a2f62
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - run: python -m pip install -e . pytest flake8

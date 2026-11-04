@@ -24,11 +24,11 @@ jobs:
             platform: windows_amd64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: '1.17.1'
           terraform_wrapper: false
@@ -51,7 +51,7 @@ jobs:
           python python/verify_release_sources.py "$VERSION" "${{ matrix.platform }}"
           python -m pytest -q python/tests/test_release.py
           python python/validate_registry_package.py "$VERSION" "${{ matrix.platform }}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: release-${{ matrix.platform }}
           if-no-files-found: error
@@ -69,8 +69,8 @@ jobs:
     steps:
       # Checkout must precede downloads: checkout's workspace cleanup deletes
       # anything unpacked in dist/release when it runs second.
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
         with:
           pattern: release-*
           path: dist/release
