@@ -59,8 +59,8 @@ Only after the PR is merged and its checks pass, create an annotated or
 signed tag `v0.1.0` pointing at the intended release commit. The public
 Terraform Registry expects `v`-prefixed semantic-version tags; the old
 `pyprovider-v*` convention cannot publish a registry version.
-The `.github/workflows/python-release.yml` workflow builds three
-platforms, runs a real Terraform schema handshake and packages binary ZIPs
+The `.github/workflows/python-release.yml` workflow builds four
+platforms (Linux amd64 and arm64, macOS arm64, and Windows amd64), runs a real Terraform schema handshake and packages binary ZIPs
 plus matching source/license ZIPs.
 It does **not** publish until the `publish` environment job is approved.
 That job validates the artifacts, signs their checksums, verifies the
@@ -69,7 +69,7 @@ signature and creates the GitHub Release. A maintainer must then complete regist
 **The PR artifact is a preflight candidate, not proof of the final release
 binary.** Python transitive dependencies and PyInstaller are not fully locked,
 so a tag-triggered rebuild might differ. After creating the tag, wait for
-all three `release` matrix jobs to succeed, download the
+all four `release` matrix jobs to succeed, download the
 `release-linux_amd64` artifact from the **tag-triggered** workflow run, and
 repeat Alpha's read-only executable/plan checks on that exact artifact.
 Inspect the matching source ZIP and dependency inventory from the same run.
@@ -91,6 +91,14 @@ and [provider signing-key submission](https://github.com/opentofu/registry/issue
 These must be submitted through the interactive issue-form UI. Its automation
 explicitly rejects plain API/CLI-created issues and direct metadata PRs.
 Allow for review before relying on `registry.opentofu.org/repparw/tplink`.
+
+Starting with the next release after 0.1.0, the matrix also produces
+`terraform-provider-tplink_<version>_linux_arm64.zip` and its matching
+`tplink-provider-sources_<version>_linux_arm64.zip`. Both pass the same
+schema handshake, offline registry installation, and source verification gates
+as the other platforms before signing. CI builds natively on
+[GitHub's `ubuntu-24.04-arm` runner](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+The existing 0.1.0 assets remain unchanged.
 
 Expected assets for 0.1.0:
 

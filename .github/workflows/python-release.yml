@@ -18,6 +18,8 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux_amd64
+          - os: ubuntu-24.04-arm
+            platform: linux_arm64
           - os: macos-latest
             platform: darwin_arm64
           - os: windows-latest
@@ -80,7 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
-          for PLATFORM in linux_amd64 darwin_arm64 windows_amd64; do
+          for PLATFORM in linux_amd64 linux_arm64 darwin_arm64 windows_amd64; do
             python python/verify_release_sources.py "$VERSION" "$PLATFORM"
           done
       - name: Validate complete release archive matrix before signing
@@ -89,13 +91,13 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
-          for PLATFORM in linux_amd64 darwin_arm64 windows_amd64; do
+          for PLATFORM in linux_amd64 linux_arm64 darwin_arm64 windows_amd64; do
             test -s "terraform-provider-tplink_${VERSION}_${PLATFORM}.zip"
             test -s "tplink-provider-sources_${VERSION}_${PLATFORM}.zip"
           done
           test -s "terraform-provider-tplink_${VERSION}_manifest.json"
-          test "$(find . -maxdepth 1 -name 'terraform-provider-tplink_*.zip' | wc -l)" -eq 3
-          test "$(find . -maxdepth 1 -name 'tplink-provider-sources_*.zip' | wc -l)" -eq 3
+          test "$(find . -maxdepth 1 -name 'terraform-provider-tplink_*.zip' | wc -l)" -eq 4
+          test "$(find . -maxdepth 1 -name 'tplink-provider-sources_*.zip' | wc -l)" -eq 4
           python -c 'import json,sys; x=json.load(open(sys.argv[1])); assert x == {"version":1,"metadata":{"protocol_versions":["6.0"]}}' "terraform-provider-tplink_${VERSION}_manifest.json"
       - name: Require signing credentials
         env:

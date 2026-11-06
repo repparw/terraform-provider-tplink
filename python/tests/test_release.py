@@ -25,7 +25,7 @@ def root(tmp_path):
 
 
 @pytest.mark.parametrize("platform,suffix", [
-    ("linux_amd64", ""), ("darwin_arm64", ""), ("windows_amd64", ".exe")
+    ("linux_amd64", ""), ("linux_arm64", ""), ("darwin_arm64", ""), ("windows_amd64", ".exe")
 ])
 def test_registry_asset_names_and_manifest(root, platform, suffix):
     archive, manifest = package("0.1.0", platform, root)
