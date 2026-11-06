@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PLATFORMS = {"linux_amd64", "darwin_arm64", "windows_amd64"}
+PLATFORMS = {"linux_amd64", "linux_arm64", "darwin_arm64", "windows_amd64"}
 VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$")
 
 
