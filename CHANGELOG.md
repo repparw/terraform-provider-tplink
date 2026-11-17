@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased (v0.1.0 release candidate)
+## Unreleased
+
+- Added native Linux arm64 release builds and offline package validation for
+  versions after v0.1.0; existing v0.1.0 artifacts were not changed.
+
+## v0.1.0 (2026-11-03)
 
 - Python/Pyvider provider is now the sole maintained implementation.
 - Two managed resources, five read-only data sources, and compatible state
@@ -15,4 +20,3 @@
   its inventory tool are retired, with earlier MIT-licensed revisions retained
   in Git history.
 
-The v0.1.0 release has not yet been tagged or published.
