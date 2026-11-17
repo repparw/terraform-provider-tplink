@@ -1,10 +1,11 @@
 # Python provider release checklist
 
-The Python/Pyvider implementation is the sole v0.1.0 release candidate (GPL-3.0-or-later). The Go provider and Go CI were retired before the first public release.
-Provider PR #8 merged on 2026-11-02. Do not tag or publish until the source
-archive audit, Alpha frozen-binary verification, and protected signing setup
-are complete. A GitHub release is separate from registry registration, and
-publication is restricted by the required-reviewer `publish` environment.
+**v0.1.0 was published on [GitHub](https://github.com/repparw/terraform-provider-tplink/releases/tag/v0.1.0) on 2026-11-03** and is listed in the [Terraform Registry](https://registry.terraform.io/providers/repparw/tplink/latest) and [OpenTofu Registry](https://search.opentofu.org/provider/repparw/tplink/latest).
+
+This checklist records how v0.1.0 was verified and published. Reuse it for
+future releases, adjusting the tag, platforms and asset list. The active
+Python provider is GPL-3.0-or-later; the retired Go provider remains in Git
+history.
 
 ## Verified scope and limitations
 
@@ -127,5 +128,5 @@ from either registry.
 The provider's identity is `tplink`. The
 registry source addresses `registry.terraform.io/repparw/tplink` and
 `registry.opentofu.org/repparw/tplink` are independently registered.
-Neither address has been validated as published yet. Only AX23 v2.0
-firmware 1.1.2 is supported until additional hardware is tested.
+v0.1.0 is listed in both registries. Only AX23 v2.0 firmware 1.1.2 has
+been hardware-validated; other devices require independent testing.
