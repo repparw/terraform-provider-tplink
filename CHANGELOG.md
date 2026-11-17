@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- Added native Linux arm64 release builds and offline package validation for
-  versions after v0.1.0; existing v0.1.0 artifacts were not changed.
+- Added native Linux arm64 release builds and offline package validation,
+  starting with the first release after v0.1.0. Existing v0.1.0 artifacts
+  are unchanged.
 
 ## v0.1.0 (2026-11-03)
 
