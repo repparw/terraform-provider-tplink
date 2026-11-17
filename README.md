@@ -1,7 +1,7 @@
 # TP-Link provider for Terraform and OpenTofu
 
-Manage DHCP reservations and port-forwarding rules on TP-Link routers with
-Terraform or OpenTofu. The provider is **hardware-tested on the Archer AX23 v2.0**
+Use Terraform or OpenTofu to manage TP-Link router configuration. The provider
+is **hardware-tested on the Archer AX23 v2.0**
 with firmware **1.1.2 Build 20250814**. Other models and firmware versions have
 not been validated.
 
@@ -24,8 +24,8 @@ executables; installing Python is not required to use them.
 
 **v0.1.0** is published on [GitHub Releases](https://github.com/repparw/terraform-provider-tplink/releases/tag/v0.1.0)
 and listed in both the
-[OpenTofu Registry](https://search.opentofu.org/provider/repparw/tplink/latest)
-and [Terraform Registry](https://registry.terraform.io/providers/repparw/tplink/latest).
+[Terraform Registry](https://registry.terraform.io/providers/repparw/tplink/latest)
+and [OpenTofu Registry](https://search.opentofu.org/provider/repparw/tplink/latest).
 
 For OpenTofu:
 
@@ -60,13 +60,13 @@ tofu plan
 
 For **Terraform**, change the provider source to
 `registry.terraform.io/repparw/tplink` and use `terraform init` /
-`terraform plan`. Registry namespaces are independent; a Terraform lock
-file will not automatically use the OpenTofu registry address.
+`terraform plan`. The two registries are registered separately. To switch
+between them, change the provider source address and re-run `init`.
 
-v0.1.0 provides frozen binaries for **Linux amd64**, **macOS arm64**, and
-**Windows amd64**. Linux arm64 builds were added to the release workflow
-*after* v0.1.0 and will be available in a subsequent release. Linux binaries
-require a compatible glibc runtime. On NixOS, `programs.nix-ld.enable = true;`
+v0.1.0 provides standalone executables for **Linux amd64**, **macOS arm64**,
+and **Windows amd64**. Linux arm64 builds are not part of v0.1.0 and will ship
+starting with the next release. Linux executables require a compatible glibc
+runtime. On NixOS, `programs.nix-ld.enable = true;`
 and required libraries (such as `libz`) may be needed.
 
 See the [provider schema](docs/index.md),
@@ -79,12 +79,13 @@ Existing router entries should be **imported** rather than recreated.
 The verified AX23 firmware exposes its management interface over HTTP. Use
 the provider on a trusted local network. The router allows only one active
 admin session: a provider read or write can evict a web-UI session, and
-repeated incorrect passwords may trigger a long lockout.
+repeated incorrect passwords may trigger a long lockout. The provider does
+not retry failed credentials.
 
 A transport timeout can occur *after* a router write has succeeded. The
 provider retries only when the router explicitly reports session expiry,
 not after ambiguous network errors. Review plans before applying changes,
-particularly for existing household network rules.
+particularly for existing network rules.
 
 Optional RSA key pins protect against substituted login keys. Enroll them
 over a trusted connection using the read-only
