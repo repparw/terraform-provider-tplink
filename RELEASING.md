@@ -2,11 +2,10 @@
 
 **v0.1.0 was published on [GitHub](https://github.com/repparw/terraform-provider-tplink/releases/tag/v0.1.0) on 2026-11-03** and is listed in the [Terraform Registry](https://registry.terraform.io/providers/repparw/tplink/latest) and [OpenTofu Registry](https://search.opentofu.org/provider/repparw/tplink/latest).
 
-The checklist below documents the first release's verification and publication
-process. Those initial-release tasks are complete, not outstanding work. Use
-the release workflow and verification steps for future versions, adjusting
-the tag, platforms and asset list to match the new release. The active Python
-provider is GPL-3.0-or-later; the retired Go provider remains in Git history.
+This checklist records how v0.1.0 was verified and published. Reuse it for
+future releases, adjusting the tag, platforms and asset list. The active
+Python provider is GPL-3.0-or-later; the retired Go provider remains in Git
+history.
 
 ## Verified scope and limitations
 
